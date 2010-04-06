@@ -6,7 +6,7 @@ use Carp;
 use Scalar::Util qw/blessed/;
 
 our @EXPORT = qw/export/;
-our $VERSION = 0.002;
+our $VERSION = 0.003;
 
 sub import {
     my $class = shift;
@@ -62,12 +62,9 @@ sub export_to {
 }
 
 sub export {
-    # XXX - If we move my $exporter below to where it is shifted off @_ we have
-    # bizzare behavior where $exporter seems to remember its value from a
-    # previous run. I failed to create a boiled down test case however.
-    my $exporter;
+    my ( $exporter, $sub );
 
-    my $sub = pop( @_ ) if ref( $_[-1] ) && ref( $_[-1] ) eq 'CODE';
+    $sub = pop( @_ ) if ref( $_[-1] ) && ref( $_[-1] ) eq 'CODE';
     $exporter = shift( @_ ) if @_ > 1;
     my ( $name ) = @_;
     $exporter = blessed( $exporter ) || $exporter || caller;
