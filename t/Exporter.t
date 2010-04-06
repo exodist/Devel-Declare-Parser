@@ -26,7 +26,7 @@ use_ok( "Exporter::Declare" );
     use warnings;
     Extended->import;
 
-    export( 'c' => sub { 'c' });
+    export( 'c' => sub { 'c' } );
 
     package UseExtendedExtended;
     use strict;
