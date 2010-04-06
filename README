@@ -1,0 +1,68 @@
+NAME
+    Exporter::Declare - Declarative function exporting
+
+DESCRIPTION
+    Declarative function exporting. You can export subs as usualy with
+    @EXPORT, or export anonymous subs under whatever name you want. You can
+    also extend Exporter::Declare very easily. You can also add an export
+    from outside the package using the export() class method on it.
+
+SYNOPSYS
+    Basic usage:
+
+        package MyPackage;
+        use strict;
+        use warnings;
+        use Exporter::Declare;
+
+        # works as expected
+        our @EXPORT = qw/a/;
+
+        # Declare an anonymous export
+        export b => sub { 'b' };
+
+        export 'c';
+        sub c { 'c' }
+        sub a { 'a' }
+
+        1;
+
+    Extending:
+
+        package MyExporterDeclare;
+        use strict;
+        use warnings;
+        use Exporter::Declare ':extend';
+
+        export my_export => sub {
+            my ( $name, $sub ) = @_;
+            export( $name, $sub );
+        };
+
+    Import with a prefix:
+
+        package MyThing;
+        use strict;
+        use warnings;
+        use MyThingThatExports ':prefix:myprefix';
+
+    Import a list of subs only:
+
+        package MyThing;
+        use strict;
+        use warnings;
+        use MyThingThatExports qw/ sub_a sub_b /;
+
+AUTHORS
+    Chad Granum exodist7@gmail.com
+
+COPYRIGHT
+    Copyright (C) 2010 Chad Granum
+
+    Exporter-Declare is free software; Standard perl licence.
+
+    Exporter-Declare is distributed in the hope that it will be useful, but
+    WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the license for
+    more details.
+
