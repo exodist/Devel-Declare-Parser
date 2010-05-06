@@ -6,7 +6,7 @@ use Carp;
 use Scalar::Util qw/blessed/;
 
 our @EXPORT = qw/export/;
-our $VERSION = 0.003;
+our $VERSION = 0.004;
 
 sub import {
     my $class = shift;

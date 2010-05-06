@@ -11,6 +11,9 @@ my $build = Module::Build->new(
     requires => {
         'Test::Simple' => 0.88,
         'Test::Exception' => 0,
+        'Devel::Declare' => 0.006000,
+        'B::Compiling' => 0.02,
+        'B::Hooks::EndOfScope' => 0.08,
     },
     meta_merge => {
         resources => {
