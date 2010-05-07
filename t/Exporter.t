@@ -52,7 +52,7 @@ BEGIN {
 
     export x export { 100 }
 
-    throws_ok { export z z { 1 } }
+    throws_ok { eval ' export z z { 1 } 1' || die $@ }
     qr/'z' is not a valid recipe, did you forget to load the class that provides it?/,
     "Invalid recipe";
 

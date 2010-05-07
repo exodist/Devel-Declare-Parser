@@ -6,23 +6,25 @@ use Devel::Declare;
 use B::Compiling;
 use B::Hooks::EndOfScope;
 use Scalar::Util qw/blessed/;
+use Carp;
 require Devel::BeginLift;
 
 our %REGISTER;
 
 sub register {
-    shift( @_ ) if @_ > 1;
-    my ( $name ) = @_;
-    $REGISTER{ $name } = caller;
+    my $class = shift;
+    my ( $name, $package ) = @_;
+    croak( "No name for registration" ) unless $name;
+    $REGISTER{ $name } = $package || caller;
 }
 
 sub get_recipe {
-    shift( @_ ) if @_ > 1;
+    my $class = shift;
     my ( $name ) = @_;
+    croak( "No name for recipe" ) unless $name;
     $REGISTER{ $name };
 }
 
-sub abstract { die "$_[0] must be overriden" }
 sub num_names {
     my $class = shift;
     my @names = $class->names;
@@ -33,22 +35,25 @@ sub has_proto { 0 }
 sub has_specs { 0 }
 sub has_code  { 1 }
 sub run_at_compile { 0 }
+sub recipe_inject {}
+sub hook {};
 
-sub type { abstract 'type' }
+sub type { 'const' }
 sub skip { 0 };
 sub _skip {
     my $self = shift;
     return 1 if $self->skip;
 
     my $line = Devel::Declare::get_linestr();
+    substr( $line, 0, $self->offset ) = '';
     my $name = $self->name;
-    return 1 if $line =~ m/$name\s*\(/;
+    return 1 if $line =~ m/^$name\s*\(/;
     return 0;
 }
 
 {
     my $count = 0;
-    for my $accessor ( qw/name declarator offset at_end / ) {
+    for my $accessor ( qw/name declarator offset at_end parsed_names parsed_specs proto_string/ ) {
         my $idx = $count++;
         no strict 'refs';
         *$accessor = sub {
@@ -120,8 +125,14 @@ sub parse {
     $self->goto_end;
     $self->verify_end;
 
+    $self->parsed_names( \@names );
+    $self->parsed_specs( $specs );
+    $self->proto_string( $proto );
+    $self->hook();
+
     if ($self->has_code) {
         push @inject => $self->block_inject;
+        push @inject => $self->recipe_inject if $self->recipe_inject;
         push @inject => $specs->{inject} if $specs->{inject};
     }
 
@@ -225,9 +236,7 @@ sub block_inject {
         (map { "\$$_" } $self->names),
         '%proto'
     );
-    return " BEGIN { $class\->do_block_inject() }; "
-#         . ($self->has_code ? 'my $sub = pop( @_ ); ' : '')
-#         . 'my ( ' . $vars . ') = @_; '
+    return " BEGIN { $class\->do_block_inject() }; ";
 }
 
 sub do_block_inject {

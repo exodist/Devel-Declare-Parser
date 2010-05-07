@@ -8,7 +8,7 @@ use Test::Exception;
 our $CLASS;
 our $ECLASS;
 
-our ( $PROTO, $SPECS, $CODE, $ATCOMPILE );
+our ( $PROTO, $SPECS, $CODE, $ATCOMPILE, $INJECT );
 our @NAMES;
 
 BEGIN {
@@ -33,6 +33,7 @@ use_ok( $CLASS );
     sub has_code  { $main::CODE }
     sub run_at_compile { $main::ATCOMPILE }
     sub type { 'const' }
+    sub recipe_inject { $main::INJECT }
 }
 
 sub test {
@@ -91,17 +92,20 @@ test  a  {
 BEGIN {
     $PROTO = 0;
     $SPECS = 1;
+    $INJECT = 'my $yyy = "yyy";';
     @NAMES = qw/a/;
 };
 
 test a (inject => 'my $xxx = "xxx";') {
     is( $xxx, 'xxx', "Injected" );
+    is( $yyy, 'yyy', "Injected2" );
     100
 }
 
 BEGIN {
     $PROTO = 0;
     $SPECS = 1;
+    $INJECT = undef;
     @NAMES = qw/a b c d e/;
 };
 

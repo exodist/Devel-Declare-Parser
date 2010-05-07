@@ -10,7 +10,6 @@ use Exporter::Declare::Recipe::Export;
 our $VERSION = 0.004;
 our @CARP_NOT = ( __PACKAGE__ );
 export( 'export', 'export' );
-export( 'recipe', 'recipe' );
 
 sub import {
     my $class = shift;
@@ -77,10 +76,6 @@ sub export_to {
     }
 }
 
-sub recipe {
-    # Create a quick recipe.
-}
-
 sub export {
     my ( $exporter, $sub );
 
@@ -102,7 +97,7 @@ sub export {
 
     my $rclass;
     if ( $recipe ) {
-        $rclass = Exporter::Declare::Recipe::get_recipe($recipe);
+        $rclass = Exporter::Declare::Recipe->get_recipe($recipe);
         croak( "'$recipe' is not a valid recipe, did you forget to load the class that provides it?" )
             unless $rclass;
     }
