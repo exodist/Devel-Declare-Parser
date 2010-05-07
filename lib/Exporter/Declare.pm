@@ -4,9 +4,13 @@ use warnings;
 
 use Carp;
 use Scalar::Util qw/blessed/;
+use Exporter::Declare::Recipe;
+use Exporter::Declare::Recipe::Export;
 
-our @EXPORT = qw/export/;
 our $VERSION = 0.004;
+our @CARP_NOT = ( __PACKAGE__ );
+export( 'export', 'export' );
+export( 'recipe', 'recipe' );
 
 sub import {
     my $class = shift;
@@ -44,10 +48,17 @@ sub exports {
     };
 }
 
+sub recipes {
+    my $class = shift;
+    no strict 'refs';
+    return { %{ $class . '::RECIPES' } };
+}
+
 sub export_to {
     my $class = shift;
     my ( $dest, $prefix, @list ) = @_;
     my $exports = $class->exports;
+    my $recipes = $class->recipes;
     for my $name ( @list || keys %$exports ) {
         my $sub = $exports->{ $name };
         $sub = $class->can( $sub ) unless ref $sub eq 'CODE';
@@ -55,19 +66,33 @@ sub export_to {
         croak( "Could not find sub '$name' in $class for export" )
             unless ref($sub) eq 'CODE';
 
-        $name = $prefix . $name if $prefix;
-        no strict 'refs';
-        *{ $dest . '::' . $name } = $sub;
+        my $writename = $prefix ? $prefix . $name : $name;
+        {
+            no strict 'refs';
+            *{ $dest . '::' . $writename } = $sub;
+        }
+        my $recipe = $recipes->{ $name };
+        next unless $recipe;
+        $recipe->rewrite( $dest, $name );
     }
+}
+
+sub recipe {
+    # Create a quick recipe.
 }
 
 sub export {
     my ( $exporter, $sub );
 
     $sub = pop( @_ ) if ref( $_[-1] ) && ref( $_[-1] ) eq 'CODE';
-    $exporter = shift( @_ ) if @_ > 1;
-    my ( $name ) = @_;
+    $exporter = shift( @_ ) if $_[0]
+                            && (
+                                blessed( $_[0] )
+                             || (!ref($_[0]) && $_[0]->isa('Exporter::Declare'))
+                            );
+
     $exporter = blessed( $exporter ) || $exporter || caller;
+    my ( $name, $recipe ) = @_;
 
     croak( "You must provide a name to export()" )
         unless $name;
@@ -75,9 +100,23 @@ sub export {
     croak( "No code found in '$exporter' for exported sub '$name'" )
         unless $sub;
 
-    no strict 'refs';
-    my $export = \%{ $exporter . '::EXPORT' };
+    my $rclass;
+    if ( $recipe ) {
+        $rclass = Exporter::Declare::Recipe::get_recipe($recipe);
+        croak( "'$recipe' is not a valid recipe, did you forget to load the class that provides it?" )
+            unless $rclass;
+    }
+
+    my $export;
+    my $recipes;
+    {
+        no strict 'refs';
+        no warnings 'once';
+        $export = \%{ $exporter . '::EXPORT' };
+        $recipes = \%{ $exporter . '::RECIPES' };
+    }
     $export->{ $name } = $sub;
+    $recipes->{ $name } = $rclass if $rclass;
 }
 
 package Exporter::Declare::Base;

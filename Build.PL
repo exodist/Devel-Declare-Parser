@@ -14,6 +14,9 @@ my $build = Module::Build->new(
         'Devel::Declare' => 0.006000,
         'B::Compiling' => 0.02,
         'B::Hooks::EndOfScope' => 0.08,
+        'B::Hooks::OP::Check' => 0,
+        'Devel::BeginLift' => 0,
+
     },
     meta_merge => {
         resources => {

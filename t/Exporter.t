@@ -7,7 +7,7 @@ use Test::Exception;
 
 use_ok( "Exporter::Declare" );
 
-{
+BEGIN {
     package Extended;
     use strict;
     use warnings;
@@ -42,13 +42,26 @@ use_ok( "Exporter::Declare" );
     use strict;
     use warnings;
     use Exporter::Declare;
+    use Test::Exception;
 
     our @EXPORT = qw/f/;
 
     export e => sub { 'e' };
 
+    export('y', undef, sub { 100 });
+
+    export x export { 100 }
+
+    throws_ok { export z z { 1 } }
+    qr/'z' is not a valid recipe, did you forget to load the class that provides it?/,
+    "Invalid recipe";
+
     sub f { 'f' }
-}
+};
+
+use Exporter::Declare;
+
+export x { 100 }
 
 can_ok( 'Extended', 'export' );
 isa_ok( 'Extended', 'Exporter::Declare' );
@@ -79,8 +92,8 @@ ok( !NormalUse->isa( 'Extended' ), "Not an extended" );
 isa_ok( 'UseExtended', 'Exporter::Declare' );
 isa_ok( 'UseExtended', 'Exporter::Declare::Base' );
 is_deeply(
-    [ keys %{ NormalUse->exports }],
-    [ 'e', 'f' ],
+    [ sort keys %{ NormalUse->exports }],
+    [ 'e', 'f', 'x', 'y', ],
     "Exports in normal use",
 );
 
@@ -96,6 +109,7 @@ push @NormalUse::EXPORT => 'apple';
 throws_ok { NormalUse->export_to( 'xxx' )}
     qr/Could not find sub 'apple' in NormalUse for export/,
     "Must have sub to export";
+pop @NormalUse::EXPORT;
 
 can_ok( 'UseExtendedExtended', 'c' );
 ok( !UseExtendedExtended->isa( 'Extended' ), "Not an extended" );
@@ -105,5 +119,20 @@ ok( !UseExtendedExtended->can( 'export' ), "Can't export" );
 
 ok( !UsePrefix->can( 'c' ), "No c" );
 can_ok( 'UsePrefix', 'blah_c' );
+
+{
+    package XXX::XXX;
+    use strict;
+    use warnings;
+    use Test::More;
+    use Test::Exception;
+    BEGIN { NormalUse->import() };
+    is( x(), 100, "x works" );
+    my $x = x a { 100 }
+
+    lives_and {
+        is( $x, 100, "Value set" );
+    };
+}
 
 done_testing;

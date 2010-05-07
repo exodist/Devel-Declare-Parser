@@ -6,6 +6,21 @@ use Devel::Declare;
 use B::Compiling;
 use B::Hooks::EndOfScope;
 use Scalar::Util qw/blessed/;
+require Devel::BeginLift;
+
+our %REGISTER;
+
+sub register {
+    shift( @_ ) if @_ > 1;
+    my ( $name ) = @_;
+    $REGISTER{ $name } = caller;
+}
+
+sub get_recipe {
+    shift( @_ ) if @_ > 1;
+    my ( $name ) = @_;
+    $REGISTER{ $name };
+}
 
 sub abstract { die "$_[0] must be overriden" }
 sub num_names {
@@ -17,12 +32,23 @@ sub names {()}
 sub has_proto { 0 }
 sub has_specs { 0 }
 sub has_code  { 1 }
+sub run_at_compile { 0 }
+
 sub type { abstract 'type' }
-sub skip { 0 }
+sub skip { 0 };
+sub _skip {
+    my $self = shift;
+    return 1 if $self->skip;
+
+    my $line = Devel::Declare::get_linestr();
+    my $name = $self->name;
+    return 1 if $line =~ m/$name\s*\(/;
+    return 0;
+}
 
 {
     my $count = 0;
-    for my $accessor ( qw/name declarator offset at_end/ ) {
+    for my $accessor ( qw/name declarator offset at_end / ) {
         my $idx = $count++;
         no strict 'refs';
         *$accessor = sub {
@@ -35,42 +61,73 @@ sub skip { 0 }
 
 sub _new {
     my $class = shift;
+    $class->_sanity;
     return bless( [ @_ ], $class );
+}
+
+sub _sanity {
+    my $class = shift;
+    $class->type;
+    die( "You cannot mix protos and specs" )
+        if $class->has_proto && $class->has_specs;
+    die( "You cannot mix run_at_compile with anything else" )
+        if $class->run_at_compile && (
+           $class->has_code ||
+           $class->has_specs ||
+           $class->has_proto
+        );
 }
 
 sub rewrite {
     my $class = shift;
     my ( $for, $name ) = @_;
 
-    Devel::Declare->setup_for(
-        $for,
-        { $name => { $class->type => sub { $class->_new( $name, @_ )->parse() }}}
-    );
+    if ( $class->run_at_compile ) {
+        Devel::BeginLift->setup_for($for => [$name]);
+    }
+    else {
+        Devel::Declare->setup_for(
+            $for,
+            { $name => { $class->type => sub { $class->_new( $name, @_ )->parse() }}}
+        );
+    }
+}
+
+sub verify_end {
+    my $self = shift;
+    $self->too_many_tokens unless $self->at_end;
+    my $end = $self->at_end;
+    my $line = PL_compiling->line;
+    my $file = PL_compiling->file;
+    die( "Code block is required near '$end' at $file line $line\n" )
+        if $self->has_code && $end ne '{';
+    die( "Code block is not allowed near '$end' at $file line $line\n" )
+        if !$self->has_code && $end ne ';';
+    1;
 }
 
 sub parse {
     my $self = shift;
-    return if $self->skip;
+    return if $self->_skip;
 
-    my $stripped = $self->get_name;
-    die( "first token not " . $self->name )
-        unless $stripped eq $self->name;
-
+    $self->skip_declarator;
     my ( $proto, $specs, @names, @inject );
-    push @names => $self->get_name() for 1 .. $self->num_names;
+    push @names => $self->get_name() for $self->names;
     $specs = $self->get_specs if $self->has_specs;
     $proto = $self->get_proto if $self->has_proto;
+    $proto =~ s/(^\s+|\s+$)// if $proto;
 
     $self->goto_end;
+    $self->verify_end;
 
-    $self->too_many_tokens unless $self->at_end;
+    if ($self->has_code) {
+        push @inject => $self->block_inject;
+        push @inject => $specs->{inject} if $specs->{inject};
+    }
 
-    push @inject => $self->block_inject if $self->has_code;
-    push @inject => $specs->{inject} if $specs->{inject};
+    my $linestr = Devel::Declare::get_linestr();
 
-    my $end = Devel::Declare::get_linestr();
-
-    my $line = $self->name . "("
+    my $insert = "("
              . join(
                 ", ",
                 map {
@@ -79,11 +136,23 @@ sub parse {
                         : 'undef'
                 } 0 .. ($self->num_names - 1)
                )
-             . ( $proto ? ", $proto, " : '' )
-             . ( $self->has_code ? ', sub {' : '' )
-             . join( '', @inject )
-             . ($end ? $end : '' );
-    Devel::Declare::set_linestr($line);
+             . ( $proto ? ", $proto " : '' )
+             . ( $self->has_code ? ', sub {' : $self->end_no_code )
+             . join( '', @inject );
+
+    substr($linestr, $self->offset, 0) = $insert;
+    Devel::Declare::set_linestr($linestr);
+}
+
+sub end_no_code {
+    my $self = shift;
+    my $out = ");";
+    return $out;
+}
+
+sub skip_declarator {
+    my $self = shift;
+    $self->offset( $self->offset + length($self->name) );
 }
 
 sub get_name {
@@ -157,8 +226,8 @@ sub block_inject {
         '%proto'
     );
     return " BEGIN { $class\->do_block_inject() }; "
-         . ($self->has_code ? 'my $sub = pop( @_ ); ' : '')
-         . 'my ( ' . $vars . ') = @_; '
+#         . ($self->has_code ? 'my $sub = pop( @_ ); ' : '')
+#         . 'my ( ' . $vars . ') = @_; '
 }
 
 sub do_block_inject {
@@ -167,7 +236,8 @@ sub do_block_inject {
     on_scope_end {
         my $linestr = Devel::Declare::get_linestr;
         my $offset = Devel::Declare::get_linestr_offset;
-        substr($linestr, $offset, 0) = ');';
+        my $add = ');';
+        substr($linestr, $offset, 0) = $add;
         Devel::Declare::set_linestr($linestr);
     };
 }
