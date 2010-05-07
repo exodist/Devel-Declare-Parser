@@ -5,11 +5,6 @@ use warnings;
 use Carp;
 use Scalar::Util qw/blessed/;
 use Exporter::Declare::Recipe;
-use Exporter::Declare::Recipe::Export;
-use Exporter::Declare::Recipe::Sublike;
-use Exporter::Declare::Recipe::Codeblock;
-use Exporter::Declare::Recipe::Method;
-use Exporter::Declare::Recipe::Begin;
 
 our $VERSION = 0.005;
 our @CARP_NOT = ( __PACKAGE__ );
@@ -136,21 +131,93 @@ __END__
 
 =head1 NAME
 
-Exporter::Declare - Declarative function exporting
+Exporter::Declare - Declarative exports and simple Devel-Declare interface.
 
 =head1 DESCRIPTION
 
 Declarative function exporting. You can export subs as usual with @EXPORT, or
 export anonymous subs under whatever name you want. You can also extend
-Exporter::Declare very easily. You can also add an export from outside the
-package using the export() class method on it.
+Exporter::Declare very easily.
 
 Exporter-Declare also provides a friendly interface to L<Devel::Declare> magic.
-If you want to provide methods that work like L<MooseX::Declare> or other
-L<Devel::Declare> enhanced function, this is the module for you. There are a
-few common recipes available for formatting exports.
+Provides a simple way to export functions with Devel-Declare magic. With
+Exporter-Declare and its recipe library, you can write L<Devel::Declare>
+enhanced functions without directly using Devel-Declare or writing a custom
+parser.
 
-=head1 EXPORTER SYNOPSIS
+=head1 MANY FACES OF EXPORT
+
+The export() function is the magical interface. It can be used in many forms:
+
+=over 4
+
+=item our @EXPORT = @names;
+
+Technically your not actually using the function here, but it is worth noting
+that use of a package variable '@EXPORT' works just like L<Exporter>. However
+there is not currently an @EXPORT_OK.
+
+=item export( $name )
+
+Export the sub specified by the string $name. This sub must be defined in the
+current package.
+
+=item export( $name, \&code )
+
+=item export name { ... }
+
+Export the coderef under the specified name.
+
+=item export( $name, $recipe )
+
+Export the sub specified by the string $name, applying the magic from the
+specified recipe whenever the function is called by a class that imports it.
+
+=item export( $name, $recipe, \&code )
+
+=item export name recipe { ... }
+
+Export the coderef under the specified name, applying the magic from the
+specified recipe whenever the function is called by a class that imports it.
+
+=item export name ( ... ) { ... }
+
+same as 'export name { ... }' except that parameters can be passed into the
+parser. Currently you cannot put any variables in the ( ... ) as it will be
+evaluated as a string outside of any closures - This may be fixed in the
+future.
+
+=item export name recipe ( ... ) { ... }
+
+same as 'export name recipe { ... }' except that parameters can be passed into
+the parser. Currently you cannot put any variables in the ( ... ) as it will be
+evaluated as a string outside of any closures - This may be fixed in the
+future.
+
+=item $class->export( $name )
+
+Method form of 'export( $name )'. $name must be the name of a subroutine in the
+package $class. The export will be added as an export of $class.
+
+=item $class->export( $name, \&code )
+
+Method form of 'export( $name, \&code )'. The export will be added as an export
+of $class.
+
+=item $class->export( $name, $recipe )
+
+Method form of 'export( $name, $recipe )'. $name must be the name of a
+subroutine in the package $class. The export will be added as an export of
+$class.
+
+=item $class->export( $name, $recipe, \&code )
+
+Method form of 'export( $name, $recipe, \&code )'. The export will be added as
+an export of $class.
+
+=back
+
+=head1 EXPORTING SYNOPSIS
 
 =head2 Basic usage (No Devel-Declare)
 
@@ -162,12 +229,14 @@ few common recipes available for formatting exports.
     # works as expected
     our @EXPORT = qw/a/;
 
+    sub a { 'a' }
+
     # Declare an anonymous export
     export b => sub { 'b' };
+    export( 'c', sub { 'c' });
 
-    export 'c';
-    sub c { 'c' }
-    sub a { 'a' }
+    export 'd';
+    sub d { 'd' }
 
     1;
 
@@ -187,14 +256,25 @@ Notice, no need for '=> sub', and trailing semicolon is optional.
         'c'
     }
 
-    export d
-    {
-        'd'
-    }
-
     1;
 
 =head2 Exporting Devel-Declare magic
+
+To export Devel-Declare magic you specify a recipe as a second parameter to
+export(). Please see the RECIPIES section for more information about each
+recipe.
+
+    package MyPackage;
+    use strict;
+    use warnings;
+    use Exporter::Declare;
+
+    ################################
+    # export( 'name', 'recipe_name' );
+    #   or
+    # export( 'name', 'recipe name', sub { ... })
+    #   or
+    # export name recipe_name { ... }
 
     export sl sublike {
         ok( $name, "Got name" );
@@ -206,6 +286,7 @@ Notice, no need for '=> sub', and trailing semicolon is optional.
     }
 
     export mth method {
+        ok( $name, "Got name" );
         $code = pop(@_);
     }
 
@@ -220,6 +301,10 @@ Notice, no need for '=> sub', and trailing semicolon is optional.
     export custom ( recipe => \%myrecipe ) { ... }
 
 Then to use those in the importing class:
+
+    use strict;
+    use warnings;
+    use MyPackage;
 
     sl a { ... }
 

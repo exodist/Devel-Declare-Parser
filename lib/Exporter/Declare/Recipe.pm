@@ -7,7 +7,14 @@ use B::Compiling;
 use B::Hooks::EndOfScope;
 use Scalar::Util qw/blessed/;
 use Carp;
-require Devel::BeginLift;
+
+our %RECIPE_AUTOLOAD = (
+    begin     => 'Exporter::Declare::Recipe::Begin',
+    codeblock => 'Exporter::Declare::Recipe::Codeblock',
+    export    => 'Exporter::Declare::Recipe::Export',
+    method    => 'Exporter::Declare::Recipe::Method',
+    sublike   => 'Exporter::Declare::Recipe::Sublike',
+);
 
 our %REGISTER;
 sub register {
@@ -15,7 +22,7 @@ sub register {
     my ( $name, $package ) = @_;
     croak( "No name for registration" ) unless $name;
     croak( "Recipe $name already registered" )
-        if $class->get_recipe( $name );
+        if $REGISTER{ $name };
     $REGISTER{ $name } = $package || caller;
 }
 
@@ -23,7 +30,10 @@ sub get_recipe {
     my $class = shift;
     my ( $name ) = @_;
     croak( "No name for recipe" ) unless $name;
-    $REGISTER{ $name };
+    if ( !$REGISTER{ $name } && $RECIPE_AUTOLOAD{ $name }) {
+        eval "require " . $RECIPE_AUTOLOAD{$name} . "; 1" || die($@)
+    }
+    return $REGISTER{ $name };
 }
 
 sub names {()}
@@ -38,13 +48,29 @@ sub recipe_inject {}
 
 sub _new {
     my $class = shift;
-    $class->_sanity;
     return bless( [ @_ ], $class );
 }
 
 sub _sanity {
     my $class = shift;
     $class->type;
+    if ( $class->run_at_compile && !eval { require Devel::BeginLift; 1 }) {
+        my $line = PL_compiling->line;
+        my $file = PL_compiling->file;
+
+        die <<EOT;
+Devel::BeginLift could not be found.
+You must install Devel::BeginLift in order to use/export functions that run at
+compile time.
+Recipe: @{[ $class ]}
+This recipe requires Devel::BeginLift.
+
+file: $file
+line: $line
+
+$@
+EOT
+    }
     die( "You cannot mix protos and specs" )
         if $class->has_proto && $class->has_specs;
     die( "You cannot mix run_at_compile with anything else" )
@@ -62,6 +88,7 @@ sub _skip {
     my $line = Devel::Declare::get_linestr();
     substr( $line, 0, $self->offset ) = '';
     my $name = $self->name;
+    return 1 if $line =~ m/^\S+$name/;
     return 1 if $line =~ m/^$name\s*\(/;
     return 0;
 }
@@ -83,6 +110,7 @@ sub rewrite {
     my $class = shift;
     my ( $for, $name ) = @_;
 
+    $class->_sanity;
     if ( $class->run_at_compile ) {
         Devel::BeginLift->setup_for($for => [$name]);
     }
@@ -103,9 +131,9 @@ sub num_names {
 sub verify_end {
     my $self = shift;
     $self->too_many_tokens unless $self->at_end;
-    my $end = $self->at_end;
     my $line = PL_compiling->line;
     my $file = PL_compiling->file;
+    my $end = $self->at_end;
     die( "Code block is required near '$end' at $file line $line\n" )
         if $self->has_code && $end ne '{';
     die( "Code block is not allowed near '$end' at $file line $line\n" )

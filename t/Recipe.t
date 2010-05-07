@@ -140,20 +140,27 @@ sub test2 {
 }
 
 lives_and {
-    BEGIN {
-        $main::PROTO = 0;
-        $main::SPECS = 0;
-        $main::ATCOMPILE = 1;
-        $main::INBEGIN = 1;
-        $main::CODE = 0;
-        @NAMES = qw/a/;
-        $ECLASS->rewrite( __PACKAGE__, 'test2' );
-    };
+    if ( eval { require Devel::BeginLift; 1 } ) {
+eval <<'EOT' || die( $@ );
+        BEGIN {
+            $main::PROTO = 0;
+            $main::SPECS = 0;
+            $main::ATCOMPILE = 1;
+            $main::INBEGIN = 1;
+            $main::CODE = 0;
+            @NAMES = qw/a/;
+            $ECLASS->rewrite( __PACKAGE__, 'test2' );
+        };
 
-    $main::INBEGIN = 0;
-    is( $main::INBEGIN, 0, "replaced INBEGIN" );
+        $main::INBEGIN = 0;
+        is( $main::INBEGIN, 0, "replaced INBEGIN" );
 
-    test2 name;
+        test2 name;
+EOT
+    }
+    else {
+        diag "Skipping Devel::BeginLift tests";
+    }
 } "Just a wrapper";
 
 done_testing;

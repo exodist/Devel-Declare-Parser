@@ -2,6 +2,7 @@
 use strict;
 use warnings;
 use Test::More;
+use Test::Exception::LessClever;
 
 BEGIN {
     use_ok( 'Exporter::Declare::Recipe::Export' );
@@ -31,24 +32,37 @@ BEGIN {
         pop(@_)->(1);
     }
 
-    export beg begin {
-        pop(@_)->();
-    };
+    if ( eval { require Devel::BeginLift; 1 } ) {
+        export beg begin {
+            pop(@_)->();
+        };
+    }
 }
 
 BEGIN { MyExporter->import };
 
-my %ran;
+our %ran;
 
 sl a {
     $ran{sl}++;
 }
 
-our $BEGIN;
-BEGIN { $BEGIN = 1 };
-$BEGIN = 0;
-ok( !$BEGIN, "reset begin" );
-beg( sub { $ran{beg}++; ok( $BEGIN, "In Begin" )});
+lives_and {
+    if ( eval { require Devel::BeginLift; 1 } ) {
+eval <<'EOT' || die( $@ );
+        our $BEGIN;
+        BEGIN { $BEGIN = 1 };
+        $BEGIN = 0;
+        ok( !$BEGIN, "reset begin" );
+        beg( sub { $ran{beg}++; ok( $BEGIN, "In Begin" )});
+
+        ok( $ran{beg}, "ran beg" );
+EOT
+    }
+    else {
+        diag "Skipping Devel::BeginLift tests";
+    }
+} "Devel::Begin";
 
 cb {
     $ran{cd}++;
@@ -62,6 +76,5 @@ mth {
 ok( $ran{sl}, "ran sl" );
 ok( $ran{cd}, "ran cd" );
 ok( $ran{mth}, "ran mth" );
-ok( $ran{beg}, "ran beg" );
 
 done_testing();

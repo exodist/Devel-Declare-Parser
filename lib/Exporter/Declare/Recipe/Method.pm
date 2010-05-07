@@ -5,7 +5,7 @@ use warnings;
 use base 'Exporter::Declare::Recipe';
 __PACKAGE__->register( 'method' );
 
-sub names {(qw//)}
+sub names {(qw/self/)}
 sub has_proto { 0 }
 sub has_specs { 0 }
 sub has_code  { 1 }
