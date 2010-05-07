@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Test::Exception;
+use Test::Exception::LessClever;
 
 use_ok( "Exporter::Declare" );
 
@@ -42,7 +42,7 @@ BEGIN {
     use strict;
     use warnings;
     use Exporter::Declare;
-    use Test::Exception;
+    use Test::Exception::LessClever;
 
     our @EXPORT = qw/f/;
 
@@ -125,7 +125,7 @@ can_ok( 'UsePrefix', 'blah_c' );
     use strict;
     use warnings;
     use Test::More;
-    use Test::Exception;
+    use Test::Exception::LessClever;
     BEGIN { NormalUse->import() };
     is( x(), 100, "x works" );
     my $x = x a { 100 }

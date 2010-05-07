@@ -10,11 +10,12 @@ use Carp;
 require Devel::BeginLift;
 
 our %REGISTER;
-
 sub register {
     my $class = shift;
     my ( $name, $package ) = @_;
     croak( "No name for registration" ) unless $name;
+    croak( "Recipe $name already registered" )
+        if $class->get_recipe( $name );
     $REGISTER{ $name } = $package || caller;
 }
 
@@ -25,21 +26,35 @@ sub get_recipe {
     $REGISTER{ $name };
 }
 
-sub num_names {
-    my $class = shift;
-    my @names = $class->names;
-    return scalar @names;
-}
 sub names {()}
+sub hook {};
+sub type { 'const' }
+sub skip { 0 }
 sub has_proto { 0 }
 sub has_specs { 0 }
-sub has_code  { 1 }
+sub has_code  { 0 }
 sub run_at_compile { 0 }
 sub recipe_inject {}
-sub hook {};
 
-sub type { 'const' }
-sub skip { 0 };
+sub _new {
+    my $class = shift;
+    $class->_sanity;
+    return bless( [ @_ ], $class );
+}
+
+sub _sanity {
+    my $class = shift;
+    $class->type;
+    die( "You cannot mix protos and specs" )
+        if $class->has_proto && $class->has_specs;
+    die( "You cannot mix run_at_compile with anything else" )
+        if $class->run_at_compile && (
+           $class->has_code ||
+           $class->has_specs ||
+           $class->has_proto
+        );
+}
+
 sub _skip {
     my $self = shift;
     return 1 if $self->skip;
@@ -64,25 +79,6 @@ sub _skip {
     }
 }
 
-sub _new {
-    my $class = shift;
-    $class->_sanity;
-    return bless( [ @_ ], $class );
-}
-
-sub _sanity {
-    my $class = shift;
-    $class->type;
-    die( "You cannot mix protos and specs" )
-        if $class->has_proto && $class->has_specs;
-    die( "You cannot mix run_at_compile with anything else" )
-        if $class->run_at_compile && (
-           $class->has_code ||
-           $class->has_specs ||
-           $class->has_proto
-        );
-}
-
 sub rewrite {
     my $class = shift;
     my ( $for, $name ) = @_;
@@ -96,6 +92,12 @@ sub rewrite {
             { $name => { $class->type => sub { $class->_new( $name, @_ )->parse() }}}
         );
     }
+}
+
+sub num_names {
+    my $class = shift;
+    my @names = $class->names;
+    return scalar @names;
 }
 
 sub verify_end {
@@ -147,8 +149,9 @@ sub parse {
                         : 'undef'
                 } 0 .. ($self->num_names - 1)
                )
-             . ( $proto ? ", $proto " : '' )
-             . ( $self->has_code ? ', sub {' : $self->end_no_code )
+             . ( $self->num_names ? ',' : '' )
+             . ( $proto ? "$proto, " : '' )
+             . ( $self->has_code ? 'sub {' : $self->end_no_code )
              . join( '', @inject );
 
     substr($linestr, $self->offset, 0) = $insert;
@@ -231,11 +234,6 @@ sub block_inject {
     my $self = shift;
     my $class = blessed( $self );
 
-    my $vars = join(
-        ", ",
-        (map { "\$$_" } $self->names),
-        '%proto'
-    );
     return " BEGIN { $class\->do_block_inject() }; ";
 }
 
@@ -262,5 +260,142 @@ sub too_many_tokens {
     die( "Invalid syntax near '$problem' at $file line $line\n" );
 }
 
-
 1;
+
+__END__
+
+=head1 NAME
+
+Exporter::Declare::Recipe - Devel-Declare recipe's for Exporter-Declare
+
+=head1 DESCRIPTION
+
+Recipe is a module with a parser that provides hooks to alter behavior in
+several predictably useful ways. Recipies should subclass this class.
+
+=head1 INTERNALS
+
+Recipe objects are blessed arrays, not hashrefs.
+
+=head1 ACCESSORS
+
+=over 4
+
+=item name()
+
+Name of the function that is magical
+
+=item declarator()
+
+Usually same as name
+
+=item offset()
+
+Current position on the line (for internal use)
+
+=item at_end()
+
+True if we have parsed to the end of the declaration (will be false, '{' or
+';')
+
+=item parsed_names()
+
+Get the array of names that were parsed off the declaration.
+
+    mydec a b { ... }
+
+In the above 'a', and 'b' would be the parsed names.
+
+=item parsed_specs()
+
+if has_specs() returns true than this will be the hashref parsed from:
+
+    mydec a ( THIS => 'STUFF' ) { ... }
+
+=item proto_string()
+
+if has_proto() returns true then this will be the raw string from:
+
+    mydec a ( THIS STUFF ) { ... }
+
+=back
+
+=head1 BEHAVIOR MODIFIERS
+
+=over 4
+
+=item sub names {()}
+
+Each name will be injected into the codeblock when your defining your exported
+function.
+
+    export my_func recipe_with_name_arga {
+        is( $arga, 'my_func' );
+    }
+
+    export my_func arg_b recipe_with_name_arga_and_argb {
+        is( $arga, 'my_func' );
+        is( $argb, 'arg_b' );
+    }
+
+=item sub hook {};
+
+Method called after parsing before outputing the expanded code. This is useful
+if you want to munge anything in the accessors.
+
+=item sub type { 'const' }
+
+Type of export. See L<Devel::Declare> (sorry)
+
+=item sub skip { 0 }
+
+Will skip the current declaration and leave it unaltered if this returns true.
+
+=item sub has_proto { 0 }
+
+Override this to return true if you want to specify a proto (raw string in '()'
+prior to the codeblock)
+
+Not compatible with has_specs.
+
+=item sub has_specs { 0 }
+
+Override this to return true if you want to specify a specs hash which will be
+read in and eval'd, then placed into parsed_proto().
+
+Not compatible with has_proto.
+
+=item sub has_code  { 0 }
+
+Override this to return true if you want the functions defined with your recipe
+to have codeblocks.
+
+=item sub run_at_compile { 0 }
+
+Override if you want the method to run in a begin block (not compatible with
+any other option)
+
+=item sub recipe_inject {}
+
+Return a list of stringsw to inject into the codeblock (after other
+injections).
+
+=back
+
+=head1 PARSING TOOLS
+
+TODO
+
+=head1 AUTHORS
+
+Chad Granum L<exodist7@gmail.com>
+
+=head1 COPYRIGHT
+
+Copyright (C) 2010 Chad Granum
+
+Exporter-Declare is free software; Standard perl licence.
+
+Exporter-Declare is distributed in the hope that it will be useful, but WITHOUT
+ANY WARRANTY; without even the implied warranty of MERCHANTABILITY or FITNESS
+FOR A PARTICULAR PURPOSE.  See the license for more details.

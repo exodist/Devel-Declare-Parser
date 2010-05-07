@@ -3,7 +3,7 @@ use strict;
 use warnings;
 
 use Test::More;
-use Test::Exception;
+use Test::Exception::LessClever;
 
 our $CLASS;
 our $ECLASS;
