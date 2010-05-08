@@ -8,6 +8,9 @@ use B::Hooks::EndOfScope;
 use Scalar::Util qw/blessed/;
 use Carp;
 
+###############
+# Recipe Registration and Retrieval
+#
 our %RECIPE_AUTOLOAD = (
     begin     => 'Exporter::Declare::Recipe::Begin',
     codeblock => 'Exporter::Declare::Recipe::Codeblock',
@@ -19,11 +22,11 @@ our %RECIPE_AUTOLOAD = (
 our %REGISTER;
 sub register {
     my $class = shift;
-    my ( $name, $package ) = @_;
+    my ( $name  ) = @_;
     croak( "No name for registration" ) unless $name;
     croak( "Recipe $name already registered" )
         if $REGISTER{ $name };
-    $REGISTER{ $name } = $package || caller;
+    $REGISTER{ $name } = $class;
 }
 
 sub get_recipe {
@@ -36,77 +39,29 @@ sub get_recipe {
     return $REGISTER{ $name };
 }
 
-sub names {()}
-sub hook {};
-sub type { 'const' }
-sub skip { 0 }
-sub has_proto { 0 }
-sub has_specs { 0 }
-sub has_code  { 0 }
-sub run_at_compile { 0 }
-sub recipe_inject {}
+##############
+# Stash
+#
 
-sub _new {
-    my $class = shift;
-    return bless( [ @_ ], $class );
+our %STASH;
+
+sub _stash {
+    my ( $item ) = @_;
+    my $id = "$item";
+    $STASH{$id} = $item;
+    return $id;
 }
 
-sub _sanity {
-    my $class = shift;
-    $class->type;
-    if ( $class->run_at_compile && !eval { require Devel::BeginLift; 1 }) {
-        my $line = PL_compiling->line;
-        my $file = PL_compiling->file;
-
-        die <<EOT;
-Devel::BeginLift could not be found.
-You must install Devel::BeginLift in order to use/export functions that run at
-compile time.
-Recipe: @{[ $class ]}
-This recipe requires Devel::BeginLift.
-
-file: $file
-line: $line
-
-$@
-EOT
-    }
-    die( "You cannot mix protos and specs" )
-        if $class->has_proto && $class->has_specs;
-    die( "You cannot mix run_at_compile with anything else" )
-        if $class->run_at_compile && (
-           $class->has_code ||
-           $class->has_specs ||
-           $class->has_proto
-        );
+sub _unstash {
+    my ( $id ) = @_;
+    return delete $STASH{$id};
 }
 
-sub _skip {
-    my $self = shift;
-    return 1 if $self->skip;
+##############
+# Class methods
+#
 
-    my $line = Devel::Declare::get_linestr();
-    substr( $line, 0, $self->offset ) = '';
-    my $name = $self->name;
-    return 1 if $line =~ m/^\S+$name/;
-    return 1 if $line =~ m/^$name\s*\(/;
-    return 0;
-}
-
-{
-    my $count = 0;
-    for my $accessor ( qw/name declarator offset at_end parsed_names parsed_specs proto_string/ ) {
-        my $idx = $count++;
-        no strict 'refs';
-        *$accessor = sub {
-            my $self = shift;
-            ( $self->[$idx] ) = @_ if @_;
-            return $self->[$idx];
-        };
-    }
-}
-
-sub rewrite {
+sub enhance {
     my $class = shift;
     my ( $for, $name ) = @_;
 
@@ -122,170 +77,453 @@ sub rewrite {
     }
 }
 
-sub num_names {
+sub _sanity {
     my $class = shift;
-    my @names = $class->names;
-    return scalar @names;
-}
-
-sub verify_end {
-    my $self = shift;
-    $self->too_many_tokens unless $self->at_end;
-    my $line = PL_compiling->line;
-    my $file = PL_compiling->file;
-    my $end = $self->at_end;
-    die( "Code block is required near '$end' at $file line $line\n" )
-        if $self->has_code && $end ne '{';
-    die( "Code block is not allowed near '$end' at $file line $line\n" )
-        if !$self->has_code && $end ne ';';
-    1;
-}
-
-sub parse {
-    my $self = shift;
-    return if $self->_skip;
-
-    $self->skip_declarator;
-    my ( $proto, $specs, @names, @inject );
-    push @names => $self->get_name() for $self->names;
-    $specs = $self->get_specs if $self->has_specs;
-    $proto = $self->get_proto if $self->has_proto;
-    $proto =~ s/(^\s+|\s+$)// if $proto;
-
-    $self->goto_end;
-    $self->verify_end;
-
-    $self->parsed_names( \@names );
-    $self->parsed_specs( $specs );
-    $self->proto_string( $proto );
-    $self->hook();
-
-    if ($self->has_code) {
-        push @inject => $self->block_inject;
-        push @inject => $self->recipe_inject if $self->recipe_inject;
-        push @inject => $specs->{inject} if $specs->{inject};
+    if ( $class->run_at_compile && !eval { require Devel::BeginLift; 1 }) {
+        bail( <<EOT );
+Devel::BeginLift could not be found.
+You must install Devel::BeginLift in order to use/export functions that run at
+compile time.
+Recipe: @{[ $class ]}
+This recipe requires Devel::BeginLift.
+$@
+EOT
     }
-
-    my $linestr = Devel::Declare::get_linestr();
-
-    my $insert = "("
-             . join(
-                ", ",
-                map {
-                    $names[$_]
-                        ? "'" . $names[$_] . "'"
-                        : 'undef'
-                } 0 .. ($self->num_names - 1)
-               )
-             . ( $self->num_names ? ',' : '' )
-             . ( $proto ? "$proto, " : '' )
-             . ( $self->has_code ? 'sub {' : $self->end_no_code )
-             . join( '', @inject );
-
-    substr($linestr, $self->offset, 0) = $insert;
-    Devel::Declare::set_linestr($linestr);
 }
 
-sub end_no_code {
+sub _new {
+    my $class = shift;
+    return bless( [ @_ ], $class );
+}
+
+##############
+# Accessors
+#
+
+my @ACCESSORS = qw/parts new_parts end_char original/;
+
+{
+    my $count = 0;
+    for my $accessor ( qw/name declarator offset/, @ACCESSORS ) {
+        my $idx = $count++;
+        no strict 'refs';
+        *$accessor = sub {
+            my $self = shift;
+            ( $self->[$idx] ) = @_ if @_;
+            return $self->[$idx];
+        };
+    }
+    no strict 'refs';
+    *{ __PACKAGE__ . '::_last_index' } = sub { $count };
+}
+
+sub add_accessor {
+    my $class = shift;
+    my ( $accessor ) = @_;
+    no strict 'refs';
+    my $idx = $class->_last_index + ${ $class . '::_LAST_INDEX' }++;
+    *{ $class . '::' . $accessor } = sub {
+        my $self = shift;
+        ( $self->[$idx] ) = @_ if @_;
+        return $self->[$idx];
+    };
+}
+
+###############
+# Abstractable
+#
+
+sub type { 'const' }
+sub quote_chars {( qw/ [ ( ' " / )};
+sub end_chars {( qw/ { ; / )};
+sub end_hook { 1 };
+sub rewrite {
     my $self = shift;
-    my $out = ");";
-    return $out;
+    my $class = blessed( $self );
+    bail( "You must override rewrite() in $class" );
+}
+
+###############
+# Informational
+#
+
+our %QUOTEMAP = (
+    '(' => ')',
+    '{' => '}',
+    '[' => ']',
+    '<' => '>',
+);
+
+sub end_quote {
+    my $self = shift;
+    my ( $start ) = @_;
+    return $QUOTEMAP{ $start } || $start;
+}
+
+sub linenum { PL_compiling->line }
+sub filename { PL_compiling->file }
+
+sub is_enclosed {
+    my $self = shift;
+    # If there is only one part
+    return unless @{ $self->parts } == 1;
+    # and it is quotelike
+    return unless $self->parts->[0]->[1];
+    # and it is quoted with ()
+    return unless $self->parts->[0]->[1] eq '(';
+    # Normal function call.
+    return 1;
+}
+
+sub has_comma {
+    my $self = shift;
+    grep { $_ eq ',' } $self->has_non_string_or_quote_parts;
+}
+
+sub has_fat_comma {
+    my $self = shift;
+    grep { $_ eq '=>' } $self->has_non_string_or_quote_parts;
+}
+
+sub has_non_string_or_quote_parts {
+    my $self = shift;
+    grep { !ref($_) } @{ $self->parts };
+}
+
+sub has_string_or_quote_parts {
+    my $self = shift;
+    grep { ref($_) } @{ $self->parts };
+}
+
+sub has_keyword {
+    my $self = shift;
+    my ( $word ) = @_;
+    return unless $word;
+    grep {
+        ref( $_ ) ? ($_->[1] eq $word) : ($_ eq $word)
+    } @{ $self->parts };
+}
+
+################
+# Debug
+#
+
+our $DEBUG = 0;
+sub DEBUG {shift; ( $DEBUG ) = @_ if @_; $DEBUG }
+
+sub diag { warn( _debug(@_)) }
+sub bail { die( _debug(@_))  }
+
+sub _debug {
+    shift if blessed( $_[0] );
+
+    my @caller = caller(1);
+    print STDERR (
+        @_,
+        DEBUG() ? (
+            "\nCaller     " . $caller[0] . "\n",
+            "Caller file: " . $caller[1] . "\n",
+            "Caller Line: " . $caller[2] . "\n",
+        ) : (),
+    );
+    return "at " . filename() . " line " . linenum() . "\n";
+}
+
+################
+# Line manipulation and advancement
+#
+
+sub line {
+    my $self = shift;
+    Devel::Declare::set_linestr($_[0]) if @_;
+    return Devel::Declare::get_linestr();
+}
+
+sub advance {
+    my $self = shift;
+    my ( $len ) = @_;
+    return unless $len;
+    $self->offset( $self->offset + $len );
+}
+
+sub strip_length {
+    my $self = shift;
+    my ($len) = @_;
+    return unless $len;
+
+    my $linestr = $self->line();
+    substr($linestr, $self->offset, $len) = '';
+    $self->line($linestr);
 }
 
 sub skip_declarator {
     my $self = shift;
-    $self->offset( $self->offset + length($self->name) );
-}
-
-sub get_name {
-    my $self = shift;
-    $self->skipspace;
-    if (my $len = Devel::Declare::toke_scan_word($self->offset, 1)) {
-        my $linestr = Devel::Declare::get_linestr();
-        my $name = substr($linestr, $self->offset, $len);
-        substr($linestr, $self->offset, $len) = '';
-        Devel::Declare::set_linestr($linestr);
-        return $name;
-    }
-    return;
-}
-
-sub strip_paren {
-    my $self = shift;
-    $self->skipspace;
-
-    my $linestr = Devel::Declare::get_linestr();
-    if (substr($linestr, $self->offset, 1) eq '(') {
-        my $length = Devel::Declare::toke_scan_str($self->offset);
-        my $paren = Devel::Declare::get_lex_stuff();
-        Devel::Declare::clear_lex_stuff();
-        $linestr = Devel::Declare::get_linestr();
-        substr($linestr, $self->offset, $length) = '';
-        Devel::Declare::set_linestr($linestr);
-        return $paren;
-    }
-    return;
+    $self->advance( length($self->name) );
 }
 
 sub skipspace {
     my $self = shift;
-    my $offset = $self->offset;
-    $self->offset(
-        $offset + Devel::Declare::toke_skipspace($offset)
+    $self->advance(
+        Devel::Declare::toke_skipspace( $self->offset )
     );
 }
 
-sub get_proto {
+################
+# Public parsing interface
+#
+
+sub parse {
     my $self = shift;
-    return $self->strip_paren;
+    $self->original( $self->line );
+    $self->skip_declarator;
+
+    $self->parts( $self->get_remaining_items );
+    $self->end_char( $self->peek_num_chars(1));
+
+    $self->apply_rewrite if $self->rewrite;
 }
 
-sub get_specs {
-    my $self = shift;
-    my $paren = $self->strip_paren;
-    return unless $paren;
-    return eval "{$paren}";
-}
-
-sub goto_end {
+sub peek_item_type {
     my $self = shift;
     $self->skipspace;
-    my $linestr = Devel::Declare::get_linestr;
-    my $at = substr($linestr, $self->offset, 1);
-    $self->at_end( $at =~ m/^[;{]$/ ? $at : 0 );
-    return unless $self->at_end;
-    substr($linestr, $self->offset, 1) = '';
-    Devel::Declare::set_linestr($linestr);
+    return 'quote' if $self->peek_is_quote;
+    return 'word'  if $self->peek_is_word;
+    return 'block' if $self->peek_is_block;
+    return 'end'   if $self->peek_is_end;
+    return 'other' if $self->peek_is_other;
+    return undef;
 }
 
-sub block_inject {
+sub peek_item {
+    my $self = shift;
+    $self->skipspace;
+
+    my $type = $self->peek_item_type;
+    return unless $type;
+
+    my $method = "peek_$type";
+    return unless $self->can( $method );
+
+    my $item = $self->$method();
+    return unless $item;
+
+    return $item unless wantarray;
+    return ( $item, $type );
+}
+
+sub peek_quote {
+    my $self = shift;
+    $self->skipspace;
+
+    my $start = substr($self->line, $self->offset, 3);
+    my $charstart = substr($start, 0, 1);
+    return unless $self->peek_is_quote( $start, $charstart );
+
+    my ( $length, $quoted ) = $self->_quoted_from_dd();
+
+    return [ $quoted, $charstart ];
+}
+
+sub peek_word {
+    my $self = shift;
+    $self->skipspace;
+    my $len = $self->peek_is_word;
+    return unless $len;
+
+    my $linestr = $self->line();
+    my $name = substr($linestr, $self->offset, $len);
+    return [ $name, undef ];
+}
+
+sub peek_other {
+    my $self = shift;
+    $self->skipspace;
+    return if $self->peek_is_word;
+    return if $self->peek_is_quote;
+    return if $self->peek_is_end;
+    return if $self->peek_is_block;
+    return $self->peek_is_other;
+}
+
+sub peek_is_quote {
+    my $self = shift;
+    my ( $start ) = $self->peek_num_chars(1);
+    return (grep { $_ eq $start } $self->quote_chars )
+        || undef;
+}
+
+sub peek_is_word {
+    my $self = shift;
+    return Devel::Declare::toke_scan_word($self->offset, 1)
+        || undef;
+}
+
+sub peek_is_block {
+    my $self = shift;
+    my ( $start ) = $self->peek_num_chars(1);
+    return ($start eq '{')
+        || undef;
+}
+
+sub peek_is_end {
+    my $self = shift;
+    my ( $start ) = $self->peek_num_chars(1);
+    my ($end) = grep { $start eq $_ } $self->end_chars;
+    return $end
+        || $self->peek_is_block;
+}
+
+sub peek_is_other {
+    my $self = shift;
+    my $linestr = $self->line;
+    substr( $linestr, 0, $self->offset ) = '';
+    return unless $linestr =~ m/^(\S+)/;
+    return $1;
+}
+
+sub peek_num_chars {
+    my $self = shift;
+    my @out = map { substr($self->line, $self->offset, $_) } @_;
+    return @out if wantarray;
+    return $out[0];
+}
+
+sub get_item {
+    my $self = shift;
+    return $self->_item_via_( 'advance' );
+}
+
+sub strip_item {
+    my $self = shift;
+    return $self->_item_via_( 'strip_length' );
+}
+
+sub get_remaining_items {
+    my $self = shift;
+    my @parts;
+    while ( my $part = $self->strip_item ) {
+        push @parts => $part;
+    }
+    return \@parts;
+}
+
+sub strip_remaining_items {
+    my $self = shift;
+    my @parts;
+    while ( my $part = $self->strip_item ) {
+        push @parts => $part;
+    }
+    return \@parts;
+}
+
+###############
+# Private parser interface
+#
+
+sub _linestr_offset_from_dd {
+    my $self = shift;
+    return Devel::Declare::get_linestr_offset()
+}
+
+sub _quoted_from_dd {
+    my $self = shift;
+    my $length = Devel::Declare::toke_scan_str($self->offset);
+    my $quoted = Devel::Declare::get_lex_stuff();
+    Devel::Declare::clear_lex_stuff();
+    return ( $length, $quoted );
+}
+
+sub _item_via_ {
+    my $self = shift;
+    my ( $move_method ) = @_;
+
+    my ( $item, $type ) = $self->peek_item;
+    return unless $item;
+
+    $self->_move_via_( 'advance', $type, $item );
+    return $item;
+}
+
+sub _move_via_ {
+    my $self = shift;
+    my ( $method, $type, $item ) = @_;
+
+    croak( "$method is not a valid move method" )
+        unless $self->can( $method );
+
+    if ( $type eq 'word' ) {
+        $self->$method( $self->peek_is_word );
+    }
+    elsif ( $type eq 'quote' ) {
+        my ( $len ) = $self->_quoted_from_dd();
+        $self->$method( $len );
+    }
+    elsif ( $type eq 'other' ) {
+        $self->$method( length( $item ));
+    }
+}
+
+#############
+# Rewriting interface
+#
+
+sub apply_rewrite {
+    my $self = shift;
+    my $newline = $self->_open();
+    $newline .= join( ', ', @{ $self->new_parts });
+    $newline .= $self->_close();
+
+    $self->end_hook( \$newline )
+        if ( $self->peek_is_end() eq '{' );
+
+    diag(
+        "Old Line: " . $self->line(),
+        "New Line: " . $newline,
+    ) if $self->DEBUG;
+    $self->line( $newline );
+}
+
+sub _open {
+    my $self = shift;
+    return $self->name . "( ";
+}
+
+sub _close {
+    my $self = shift;
+    my $end = $self->peek_is_end();
+    return " )$end" unless $end eq '{';
+    return 'sub { '
+         . join( '; ',
+            $self->_block_end_injection,
+            @{ $self->inject }
+         );
+}
+
+#############
+# Codeblock munging
+#
+
+sub _block_end_injection {
     my $self = shift;
     my $class = blessed( $self );
 
-    return " BEGIN { $class\->do_block_inject() }; ";
+    my $id = _stash( $self );
+
+    return "BEGIN { $class\->_edit_block_end('$id') }";
 }
 
-sub do_block_inject {
+sub _edit_block_end {
     my $class = shift;
-    my %specs = @_;
+    my ( $id ) = @_;
+    my $self = _unstash( $id );
+
     on_scope_end {
-        my $linestr = Devel::Declare::get_linestr;
-        my $offset = Devel::Declare::get_linestr_offset;
-        my $add = ');';
-        substr($linestr, $offset, 0) = $add;
-        Devel::Declare::set_linestr($linestr);
+        my $linestr = $self->line;
+        $self->offset( $self->_linestr_offset_from_dd() );
+        substr($linestr, $self->offset, 0) = ' );';
+        $self->end_hook( \$linestr );
+        $self->line($linestr);
     };
-}
-
-sub too_many_tokens {
-    my $self = shift;
-    my $line = PL_compiling->line;
-    my $file = PL_compiling->file;
-    my $problem = Devel::Declare::get_linestr;
-    chomp( $problem );
-    $problem =~ s/^\s+//;
-
-    die( "Invalid syntax near '$problem' at $file line $line\n" );
 }
 
 1;

@@ -4,164 +4,98 @@ use warnings;
 
 use Test::More;
 use Test::Exception::LessClever;
+use Data::Dumper;
+use Carp;
 
 our $CLASS;
-our $ECLASS;
-
-our ( $PROTO, $SPECS, $CODE, $ATCOMPILE, $INJECT );
-our @NAMES;
-
+our $RCLASS;
 BEGIN {
     $CLASS = 'Exporter::Declare::Recipe';
-    $ECLASS = 'My::Recipe';
-    ( $PROTO, $SPECS, $CODE ) = (0, 0, 1);
-    $ATCOMPILE = 0;
-    @NAMES = qw/a b/;
+    $RCLASS = 'My::Recipe';
 }
 
 use_ok( $CLASS );
 
-{
+BEGIN {
     package My::Recipe;
     use strict;
     use warnings;
     use base 'Exporter::Declare::Recipe';
+    use Data::Dumper;
 
-    sub names { @main::NAMES }
-    sub has_proto { $main::PROTO }
-    sub has_specs { $main::SPECS }
-    sub has_code  { $main::CODE }
-    sub run_at_compile { $main::ATCOMPILE }
+    __PACKAGE__->DEBUG( 1 );
+    __PACKAGE__->add_accessor( 'test_line' );
+    __PACKAGE__->register( 'test' );
+
+    sub line { shift->test_line( @_ )}
+
+    sub _remaining {
+        my $self = shift;
+        return substr( $self->line, $self->offset );
+    }
+
+    sub skipspace {
+        my $self = shift;
+        return unless $self->_remaining =~ m/^(\s+)/;
+        $self->advance(length($1));
+    }
+
+    #XXX !BEWARE! Will not work for nested quoting, even escaped
+    #             This is a very dumb implementation.
+    sub _quoted_from_dd {
+        my $self = shift;
+        my $start = $self->peek_num_chars(1);
+        my $end = $self->end_quote( $start );
+        my $regex = "^\\$start\([^$end]*)\\$end";
+        $self->_remaining =~ m/$regex/;
+        my $quoted = $1;
+
+        croak( "qfdd regex: |$regex| did not get complete quote." )
+            unless $quoted;
+
+        return ( length( $quoted ) + 2, $quoted );
+    }
+
+    sub peek_is_word {
+        my $self = shift;
+        my $start = $self->peek_num_chars(1);
+        return $start =~ m/^\w$/ ? 1 : 0;
+    }
+
+    sub _linestr_offset_from_dd {
+        my $self = shift;
+        die( 'Implement this' );
+    }
+
     sub type { 'const' }
-    sub recipe_inject { $main::INJECT }
-}
+    sub end_hook { 1 };
 
-sub test {
-    my ($code);
-    $code = pop( @_ ) if ref( $_[-1]) eq 'CODE';
-    is( $code->(), 100, "Code return" ) if $code;
-    unless ( $code ) {
-        is( $_[0], 'name', "got name" );
+    sub rewrite {
+        my $self = shift;
+        print Dumper( $self->parts );
+        0;
     }
 }
 
-BEGIN {
-    $ECLASS->rewrite( __PACKAGE__, 'test' );
-}
+my $one = $RCLASS->_new( 'test', 'test', 0 );
+$one->line( qq/test a b => "aaaaa" 'bbbb' , ( a => "b" ) [ 'a', 'b' ] . ;/ );
+$one->parse;
 
-test a b { 100 }
-
-test a b {
-    100
-}
-
-test a b
-{
-    100
-}
-
-test
- a
- b
- {
-    100
- }
-
-BEGIN {
-    $PROTO = 1;
-};
-
-{
-    test a b ( a => 'b' ) {
-        100;
-    }
-}
-
-test a b () {
-    100;
-}
-
-test a b {
-    100;
-}
-
-test  a  {
-    100;
-}
-
-BEGIN {
-    $PROTO = 0;
-    $SPECS = 1;
-    $INJECT = 'my $yyy = "yyy";';
-    @NAMES = qw/a/;
-};
-
-test a (inject => 'my $xxx = "xxx";') {
-    is( $xxx, 'xxx', "Injected" );
-    is( $yyy, 'yyy', "Injected2" );
-    100
-}
-
-BEGIN {
-    $PROTO = 0;
-    $SPECS = 1;
-    $INJECT = undef;
-    @NAMES = qw/a b c d e/;
-};
-
-test a b c d e (inject => 'my $xxx = "xxx";') {
-    is( $xxx, 'xxx', "injected" );
-    100
-}
-
-BEGIN {
-    $PROTO = 0;
-    $SPECS = 0;
-    $CODE = 0;
-    @NAMES = qw/a/;
-};
-
-test name;
-
-BEGIN {
-    $PROTO = 1;
-    $SPECS = 0;
-    $CODE = 0;
-    @NAMES = qw/a/;
-};
-
-test name;
-
-test name ( a => 'b' );
-
-sub test2 {
-    is( $_[0], 'name', "got name" );
-    is( $main::INBEGIN, 1, "In beginning" );
-}
-
-lives_and {
-    if ( eval { require Devel::BeginLift; 1 } ) {
-eval <<'EOT' || die( $@ );
-        BEGIN {
-            $main::PROTO = 0;
-            $main::SPECS = 0;
-            $main::ATCOMPILE = 1;
-            $main::INBEGIN = 1;
-            $main::CODE = 0;
-            @NAMES = qw/a/;
-            $ECLASS->rewrite( __PACKAGE__, 'test2' );
-        };
-
-        $main::INBEGIN = 0;
-        is( $main::INBEGIN, 0, "replaced INBEGIN" );
-
-        test2 name;
-EOT
-    }
-    else {
-        diag "Skipping Devel::BeginLift tests";
-    }
-} "Just a wrapper";
+is_deeply(
+    $one->parts,
+    [
+        [ 'a', undef ],
+        [ 'b', undef ],
+        '=>',
+        [ 'aaaaa', '"' ],
+        [ 'bbbb', "'"  ],
+        ',',
+        [ 'a => "b"', '(' ],
+        [ "'a', 'b'", '[' ],
+        '.'
+    ],
+    "Parsed properly"
+);
 
 done_testing;
 
