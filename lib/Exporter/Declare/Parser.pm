@@ -1,4 +1,4 @@
-package Exporter::Declare::Recipe;
+package Exporter::Declare::Parser;
 use strict;
 use warnings;
 
@@ -9,14 +9,14 @@ use Scalar::Util qw/blessed/;
 use Carp;
 
 ###############
-# Recipe Registration and Retrieval
+# Parser Registration and Retrieval
 #
-our %RECIPE_AUTOLOAD = (
-    begin     => 'Exporter::Declare::Recipe::Begin',
-    codeblock => 'Exporter::Declare::Recipe::Codeblock',
-    export    => 'Exporter::Declare::Recipe::Export',
-    method    => 'Exporter::Declare::Recipe::Method',
-    sublike   => 'Exporter::Declare::Recipe::Sublike',
+our %PARSER_AUTOLOAD = (
+    begin     => 'Exporter::Declare::Parser::Begin',
+    codeblock => 'Exporter::Declare::Parser::Codeblock',
+    export    => 'Exporter::Declare::Parser::Export',
+    method    => 'Exporter::Declare::Parser::Method',
+    sublike   => 'Exporter::Declare::Parser::Sublike',
 );
 
 our %REGISTER;
@@ -24,17 +24,17 @@ sub register {
     my $class = shift;
     my ( $name  ) = @_;
     croak( "No name for registration" ) unless $name;
-    croak( "Recipe $name already registered" )
+    croak( "Parser $name already registered" )
         if $REGISTER{ $name };
     $REGISTER{ $name } = $class;
 }
 
-sub get_recipe {
+sub get_parser {
     my $class = shift;
     my ( $name ) = @_;
-    croak( "No name for recipe" ) unless $name;
-    if ( !$REGISTER{ $name } && $RECIPE_AUTOLOAD{ $name }) {
-        eval "require " . $RECIPE_AUTOLOAD{$name} . "; 1" || die($@)
+    croak( "No name for parser" ) unless $name;
+    if ( !$REGISTER{ $name } && $PARSER_AUTOLOAD{ $name }) {
+        eval "require " . $PARSER_AUTOLOAD{$name} . "; 1" || die($@)
     }
     return $REGISTER{ $name };
 }
@@ -84,8 +84,8 @@ sub _sanity {
 Devel::BeginLift could not be found.
 You must install Devel::BeginLift in order to use/export functions that run at
 compile time.
-Recipe: @{[ $class ]}
-This recipe requires Devel::BeginLift.
+Parser: @{[ $class ]}
+This parser requires Devel::BeginLift.
 $@
 EOT
     }
@@ -93,7 +93,8 @@ EOT
 
 sub _new {
     my $class = shift;
-    return bless( [ @_ ], $class );
+    my ( $name, $dec, $offset ) = @_;
+    return bless( [ $name, $dec, $offset, $offset ], $class );
 }
 
 ##############
@@ -104,7 +105,7 @@ my @ACCESSORS = qw/parts new_parts end_char original/;
 
 {
     my $count = 0;
-    for my $accessor ( qw/name declarator offset/, @ACCESSORS ) {
+    for my $accessor ( qw/name declarator original_offset offset/, @ACCESSORS ) {
         my $idx = $count++;
         no strict 'refs';
         *$accessor = sub {
@@ -142,6 +143,8 @@ sub rewrite {
     my $class = blessed( $self );
     bail( "You must override rewrite() in $class" );
 }
+sub inject {()}
+sub run_at_compile { 0 }
 
 ###############
 # Informational
@@ -162,18 +165,6 @@ sub end_quote {
 
 sub linenum { PL_compiling->line }
 sub filename { PL_compiling->file }
-
-sub is_enclosed {
-    my $self = shift;
-    # If there is only one part
-    return unless @{ $self->parts } == 1;
-    # and it is quotelike
-    return unless $self->parts->[0]->[1];
-    # and it is quoted with ()
-    return unless $self->parts->[0]->[1] eq '(';
-    # Normal function call.
-    return 1;
-}
 
 sub has_comma {
     my $self = shift;
@@ -218,15 +209,15 @@ sub _debug {
     shift if blessed( $_[0] );
 
     my @caller = caller(1);
-    print STDERR (
+    my @msgs = (
         @_,
         DEBUG() ? (
-            "\nCaller     " . $caller[0] . "\n",
+            "\nCaller:      " . $caller[0] . "\n",
             "Caller file: " . $caller[1] . "\n",
             "Caller Line: " . $caller[2] . "\n",
         ) : (),
     );
-    return "at " . filename() . " line " . linenum() . "\n";
+    return ( @msgs, " at " . filename() . " line " . linenum() . "\n" );
 }
 
 ################
@@ -246,15 +237,15 @@ sub advance {
     $self->offset( $self->offset + $len );
 }
 
-sub strip_length {
-    my $self = shift;
-    my ($len) = @_;
-    return unless $len;
-
-    my $linestr = $self->line();
-    substr($linestr, $self->offset, $len) = '';
-    $self->line($linestr);
-}
+#sub strip_length {
+#    my $self = shift;
+#    my ($len) = @_;
+#    return unless $len;
+#
+#    my $linestr = $self->line();
+#    substr($linestr, $self->offset, $len) = '';
+#    $self->line($linestr);
+#}
 
 sub skip_declarator {
     my $self = shift;
@@ -276,11 +267,13 @@ sub parse {
     my $self = shift;
     $self->original( $self->line );
     $self->skip_declarator;
+    $self->skipspace;
+    return if $self->peek_num_chars(1) eq '(';
 
     $self->parts( $self->get_remaining_items );
     $self->end_char( $self->peek_num_chars(1));
 
-    $self->apply_rewrite if $self->rewrite;
+    $self->_apply_rewrite if $self->rewrite;
 }
 
 sub peek_item_type {
@@ -354,8 +347,8 @@ sub peek_is_quote {
 
 sub peek_is_word {
     my $self = shift;
-    return Devel::Declare::toke_scan_word($self->offset, 1)
-        || undef;
+    return $self->_peek_is_package
+        || $self->_peek_is_word;
 }
 
 sub peek_is_block {
@@ -393,32 +386,51 @@ sub get_item {
     return $self->_item_via_( 'advance' );
 }
 
-sub strip_item {
-    my $self = shift;
-    return $self->_item_via_( 'strip_length' );
-}
+#sub strip_item {
+#    my $self = shift;
+#    return $self->_item_via_( 'strip_length' );
+#}
 
 sub get_remaining_items {
     my $self = shift;
     my @parts;
-    while ( my $part = $self->strip_item ) {
+    while ( my $part = $self->get_item ) {
         push @parts => $part;
     }
     return \@parts;
 }
 
-sub strip_remaining_items {
+#sub strip_remaining_items {
+#    my $self = shift;
+#    my @parts;
+#    while ( my $part = $self->strip_item ) {
+#        push @parts => $part;
+#    }
+#    return \@parts;
+#}
+
+sub peek_remaining {
     my $self = shift;
-    my @parts;
-    while ( my $part = $self->strip_item ) {
-        push @parts => $part;
-    }
-    return \@parts;
+    return substr( $self->line, $self->offset );
 }
 
 ###############
 # Private parser interface
 #
+
+sub _peek_is_word {
+    my $self = shift;
+    return Devel::Declare::toke_scan_word($self->offset, 1)
+        || undef;
+}
+
+sub _peek_is_package {
+    my $self = shift;
+    my $start = $self->peek_num_chars(1);
+    return unless $start =~ m/^[A-Za-z_]$/;
+    return unless $self->peek_remaining =~ m/^(\w+::[\w:]+)/;
+    return length($1);
+}
 
 sub _linestr_offset_from_dd {
     my $self = shift;
@@ -430,6 +442,7 @@ sub _quoted_from_dd {
     my $length = Devel::Declare::toke_scan_str($self->offset);
     my $quoted = Devel::Declare::get_lex_stuff();
     Devel::Declare::clear_lex_stuff();
+
     return ( $length, $quoted );
 }
 
@@ -467,36 +480,66 @@ sub _move_via_ {
 # Rewriting interface
 #
 
-sub apply_rewrite {
+sub format_part {
+    my $self = shift;
+    my ( $part ) = @_;
+    return unless $part;
+    return $part unless ref($part);
+    return "'" . $part->[0] . "'"
+        unless $part->[1];
+    return $part->[1] . $part->[0] . $self->end_quote( $part->[1] );
+}
+
+sub _apply_rewrite {
     my $self = shift;
     my $newline = $self->_open();
-    $newline .= join( ', ', @{ $self->new_parts });
+    $newline .= join( ', ',
+        map { $self->format_part($_) }
+            @{ $self->new_parts || [] }
+    );
     $newline .= $self->_close();
 
     $self->end_hook( \$newline )
-        if ( $self->peek_is_end() eq '{' );
+        if ( $self->end_char() ne '{' );
 
     diag(
-        "Old Line: " . $self->line(),
-        "New Line: " . $newline,
+        "Old Line: " . $self->line() . "\n",
+        "New Line: " . $newline . "\n",
     ) if $self->DEBUG;
     $self->line( $newline );
 }
 
+sub prefix {
+    my $self = shift;
+    my $idx = $self->original_offset - 1;
+    my $start = $idx < 0 ? '' : substr( $self->line, 0, $idx);
+    return $start;
+}
+
+sub suffix {
+    my $self = shift;
+    return substr( $self->peek_remaining, 1 );
+}
+
 sub _open {
     my $self = shift;
-    return $self->name . "( ";
+    my $start = $self->prefix;
+    return $start . $self->name . "( ";
 }
 
 sub _close {
     my $self = shift;
-    my $end = $self->peek_is_end();
-    return " )$end" unless $end eq '{';
-    return 'sub { '
+    my $end = $self->end_char();
+    my $after_end = $self->suffix;
+    return " )$end $after_end" unless $end eq '{';
+    return ( @{$self->new_parts || []} ? ', ' : '' )
+         . 'sub { '
          . join( '; ',
             $self->_block_end_injection,
-            @{ $self->inject }
-         );
+            $self->inject
+         )
+         . '; '
+         . $after_end;
 }
 
 #############
@@ -515,15 +558,22 @@ sub _block_end_injection {
 sub _edit_block_end {
     my $class = shift;
     my ( $id ) = @_;
-    my $self = _unstash( $id );
 
     on_scope_end {
-        my $linestr = $self->line;
-        $self->offset( $self->_linestr_offset_from_dd() );
-        substr($linestr, $self->offset, 0) = ' );';
-        $self->end_hook( \$linestr );
-        $self->line($linestr);
+        $class->_scope_end($id);
     };
+}
+
+sub _scope_end {
+    my $class = shift;
+    my ( $id ) = @_;
+    my $self = _unstash( $id );
+
+    my $linestr = $self->line;
+    $self->offset( $self->_linestr_offset_from_dd() );
+    substr($linestr, $self->offset, 0) = ' );';
+    $self->end_hook( \$linestr );
+    $self->line($linestr);
 }
 
 1;
@@ -532,125 +582,20 @@ __END__
 
 =head1 NAME
 
-Exporter::Declare::Recipe - Devel-Declare recipe's for Exporter-Declare
+Exporter::Declare::Parser - Devel-Declare parser's for Exporter-Declare
 
 =head1 DESCRIPTION
 
-Recipe is a module with a parser that provides hooks to alter behavior in
+Parser is a module with a parser that provides hooks to alter behavior in
 several predictably useful ways. Recipies should subclass this class.
 
 =head1 INTERNALS
 
-Recipe objects are blessed arrays, not hashrefs.
+Parser objects are blessed arrays, not hashrefs.
 
 =head1 ACCESSORS
 
 =over 4
-
-=item name()
-
-Name of the function that is magical
-
-=item declarator()
-
-Usually same as name
-
-=item offset()
-
-Current position on the line (for internal use)
-
-=item at_end()
-
-True if we have parsed to the end of the declaration (will be false, '{' or
-';')
-
-=item parsed_names()
-
-Get the array of names that were parsed off the declaration.
-
-    mydec a b { ... }
-
-In the above 'a', and 'b' would be the parsed names.
-
-=item parsed_specs()
-
-if has_specs() returns true than this will be the hashref parsed from:
-
-    mydec a ( THIS => 'STUFF' ) { ... }
-
-=item proto_string()
-
-if has_proto() returns true then this will be the raw string from:
-
-    mydec a ( THIS STUFF ) { ... }
-
-=back
-
-=head1 BEHAVIOR MODIFIERS
-
-=over 4
-
-=item sub names {()}
-
-Each name will be injected into the codeblock when your defining your exported
-function.
-
-    export my_func recipe_with_name_arga {
-        is( $arga, 'my_func' );
-    }
-
-    export my_func arg_b recipe_with_name_arga_and_argb {
-        is( $arga, 'my_func' );
-        is( $argb, 'arg_b' );
-    }
-
-=item sub hook {};
-
-Method called after parsing before outputing the expanded code. This is useful
-if you want to munge anything in the accessors.
-
-=item sub type { 'const' }
-
-Type of export. See L<Devel::Declare> (sorry)
-
-=item sub skip { 0 }
-
-Will skip the current declaration and leave it unaltered if this returns true.
-
-=item sub has_proto { 0 }
-
-Override this to return true if you want to specify a proto (raw string in '()'
-prior to the codeblock)
-
-Not compatible with has_specs.
-
-=item sub has_specs { 0 }
-
-Override this to return true if you want to specify a specs hash which will be
-read in and eval'd, then placed into parsed_proto().
-
-Not compatible with has_proto.
-
-=item sub has_code  { 0 }
-
-Override this to return true if you want the functions defined with your recipe
-to have codeblocks.
-
-=item sub run_at_compile { 0 }
-
-Override if you want the method to run in a begin block (not compatible with
-any other option)
-
-=item sub recipe_inject {}
-
-Return a list of stringsw to inject into the codeblock (after other
-injections).
-
-=back
-
-=head1 PARSING TOOLS
-
-TODO
 
 =head1 AUTHORS
 

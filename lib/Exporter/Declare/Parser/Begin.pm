@@ -1,15 +1,11 @@
-package Exporter::Declare::Recipe::Codeblock;
+package Exporter::Declare::Parser::Begin;
 use strict;
 use warnings;
 
-use base 'Exporter::Declare::Recipe';
-__PACKAGE__->register( 'codeblock' );
+use base 'Exporter::Declare::Parser';
+__PACKAGE__->register( 'begin' );
 
-sub names {(qw//)}
-sub has_proto { 0 }
-sub has_specs { 0 }
-sub has_code  { 1 }
-sub type { 'const' }
+sub run_at_compile { 1 }
 
 1;
 

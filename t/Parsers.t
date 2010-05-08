@@ -5,11 +5,11 @@ use Test::More;
 use Test::Exception::LessClever;
 
 BEGIN {
-    use_ok( 'Exporter::Declare::Recipe::Export' );
-    use_ok( 'Exporter::Declare::Recipe::Sublike' );
-    use_ok( 'Exporter::Declare::Recipe::Codeblock' );
-    use_ok( 'Exporter::Declare::Recipe::Method' );
-    use_ok( 'Exporter::Declare::Recipe::Begin' );
+    use_ok( 'Exporter::Declare::Parser::Export' );
+    use_ok( 'Exporter::Declare::Parser::Sublike' );
+    use_ok( 'Exporter::Declare::Parser::Codeblock' );
+    use_ok( 'Exporter::Declare::Parser::Method' );
+    use_ok( 'Exporter::Declare::Parser::Begin' );
 }
 
 BEGIN {
