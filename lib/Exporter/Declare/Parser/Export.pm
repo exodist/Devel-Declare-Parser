@@ -139,6 +139,10 @@ sub rewrite {
 
 __END__
 
+=head1 NAME
+
+Exporter::Declare::Parser::Export - The parser behind the export() magic.
+
 =head1 AUTHORS
 
 Chad Granum L<exodist7@gmail.com>

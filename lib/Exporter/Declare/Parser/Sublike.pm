@@ -27,6 +27,10 @@ sub rewrite {
 
 __END__
 
+=head1 NAME
+
+Exporter::Declare::Parser::Sublike - Parser that acts just like 'sub'
+
 =head1 AUTHORS
 
 Chad Granum L<exodist7@gmail.com>

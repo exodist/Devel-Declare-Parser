@@ -22,6 +22,11 @@ sub rewrite {
 
 __END__
 
+=head1 NAME
+
+Exporter::Declare::Parser::Codeblock - Parser for functions that just take a
+codeblock.
+
 =head1 AUTHORS
 
 Chad Granum L<exodist7@gmail.com>

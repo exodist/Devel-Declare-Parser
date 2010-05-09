@@ -17,11 +17,12 @@ BEGIN {
     use strict;
     use warnings;
     use Test::More;
+    use Test::Exception::LessClever;
     use Exporter::Declare;
     use Data::Dumper;
 
     export sl sublike {
-        is( $name, 'a', "Got name" );
+        lives_ok { $name } "name is shifted";
         ok( $sub, "got sub" );
         $sub->();
     }
@@ -52,6 +53,10 @@ sl a {
     $ran{sl}++;
 }
 
+sl {
+    $ran{sl}++;
+}
+
 lives_and {
     if ( eval { require Devel::BeginLift; 1 } ) {
 eval <<'EOT' || die( $@ );
@@ -78,7 +83,7 @@ mth a {
     $ran{mth}++;
 }
 
-ok( $ran{sl}, "ran sl" );
+is( $ran{sl}, 2, "ran sl twice" );
 ok( $ran{cd}, "ran cd" );
 ok( $ran{mth}, "ran mth" );
 

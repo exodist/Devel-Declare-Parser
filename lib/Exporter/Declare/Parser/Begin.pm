@@ -11,6 +11,11 @@ sub run_at_compile { 1 }
 
 __END__
 
+=head1 NAME
+
+Exporter::Declare::Parser::Begin - Parser for functions that happen at compile
+time.
+
 =head1 AUTHORS
 
 Chad Granum L<exodist7@gmail.com>
