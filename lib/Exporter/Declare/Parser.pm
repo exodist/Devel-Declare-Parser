@@ -253,6 +253,12 @@ sub advance {
 sub skip_declarator {
     my $self = shift;
     my $item = $self->peek_is_other;
+    my $name = $self->name;
+    if ( $item =~ m/^(.*)$name/ ) {
+        $self->original_offset(
+            $self->original_offset + length($1)
+        );
+    }
     $self->advance( length($item) );
 }
 

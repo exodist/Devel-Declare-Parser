@@ -106,7 +106,7 @@ throws_ok { NormalUse::export() }
     qr/You must provide a name to export\(\)/,
     "Must provide a name";
 
-throws_ok { NormalUse::export( 'bubba' )}
+throws_ok { NormalUse::export('bubba') }
     qr/No code found in 'main' for exported sub 'bubba'/,
     "Must have sub when adding export";
 
