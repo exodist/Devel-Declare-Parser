@@ -1,0 +1,333 @@
+NAME
+    Devel::Declare::Parser - Devel-Declare parser's for Devel-Declare
+
+DESCRIPTION
+    Parser is a higher-level API sitting on top of Devel::Declare. It is
+    used by Devel::Declare to simplify exporting of Devel::Declare magic.
+    Devel-Declare allows you to modify a subroutine call as it is being
+    compiled (or right before it is compiled).
+
+    A parser should subclass this package and implement the rewrite()
+    method. By the time rewrite is called parse() will have already read the
+    current declaration line into an array of datastructures called 'parts'.
+    Rewrite's job is to move, copy, or create new 'parts' which will then be
+    assembled into the new line.
+
+SYNOPSIS
+INTERNALS WARNING
+    Parser objects are blessed arrays, not hashrefs.
+
+    If you want to create a new accessor use the add_accessor() class
+    method. It will take care of assigning an unused array element to the
+    attribute, and will create a read/write accessor sub for you.
+
+        __PACKAGE__->add_accessor( 'my_accessor' );
+
+    There are many public and private methods on the parser base class. Only
+    the public methods are fully documented. Be sure to refer often to the
+    list of private methods at the end of this document, accidently
+    overriding a private method could have devestating consequences.
+
+CLASS METHODS
+    These are methods not related to parsing. Some of these should be used
+    by a subclass, others by tools that provide your interface.
+
+  FOR INTERFACES
+    register( $name, $class )
+        Register a parser class under a short name.
+
+    get_parser( $name )
+        Get the parser class registered under $name.
+
+    enhance( $class, $function )
+        Enhance $function in $class to use the magic provided by this
+        parser.
+
+    add_accessor( $name )
+        Add an accessor to this parser, takes care of obtaining an array
+        index for you.
+
+    DEBUG($bool)
+        Turn debugging on/off.
+
+  UTILITY
+    bail( @messages )
+        Like croak, dies providing you context information. Since the death
+        occurs inside the parser croak provides useless information.
+
+    diag( @message )
+        Like carp, warns providing you context information. Since the warn
+        occurs inside the parser carp provides useless information.
+
+    end_quote($start_char)
+        Find the end-character for the provide starting quote character. As
+        in '{' returns '}' and '(' returns ')'. If there is no counter-part
+        the start character is returned: "'" return "'".
+
+    filename()
+        Filename the rewrite is occuring against.
+
+    linenum()
+        Linenum the rewrite is occuring on.
+
+    format_part()
+        Returns the stringified form of a part datastructure.
+
+    prefix()
+        Returns everything on the line up to the declaration statement. This
+        might be something like '$x = '
+
+    suffix()
+        Returns everything on the line from the ending statement character
+        to the end of the actual line. This might be something like '||
+        die(...)'. NOTE This will only work after parsing is complete.
+
+EVENTUAL OUTPUT
+    Parser is designed such that it will transform any and all calls to the
+    desired method into proper method calls.
+
+    That is this:
+
+        function x { ... }
+
+    Will become this:
+
+        function( 'x', sub { ... });
+
+    Note Parser does not read in the entire codeblock, rather it injects a
+    statement into the start of the block that uses a callback to attach the
+    ');' to the end of the statement. This is per the documentation of
+    Devel::Declare. Reading in the entire sub is not a desirable scenario.
+
+WORKFLOW OVERVIEW
+    When an enhanced function is found the proper parser will be
+    instanciated, thanks to Devel-Declare it just knows what line to
+    manipulate. The offset and declarator name are provided to the new
+    object. Finally the parse() method is called.
+
+    The parse() method will check if the call is contained,as in a call
+    where all the parameters are contained within a set of parens. If the
+    call is not contained the parser will parse the entire line into parts.
+
+    parts are placed in an arrayref in the parts() method. Once the parts
+    are ready the rewrite() method is called. The rewrite() method will take
+    the parts, do what it will with them, and then place the
+    modified/replaces parts into the new_parts() accessor.
+
+    Once rewrite() is finished the _apply_rewrite() method will join the
+    prefix data, the function call, the parts, and the postfix data into the
+    new line string. If there is a codeblock at the end of the line it will
+    have some code injected into it to append text to the end of the
+    function call.
+
+    The new line is given to Devel-Declare, and compiling continues with the
+    new line.
+
+PARSED PARTS
+    Each item between the declarator and the end of the statement (; or {)
+    will be turned into a part datastructure. Each type of element has a
+    different form.
+
+    operator, variable or other non-string/non-quote
+        These will be strings, nothing more
+
+            "string"
+            "=>"
+            ","
+            "+"
+            "$var"
+
+    bareword or package name
+        These will be arrayrefs containing the stringified word/package name
+        and undef.
+
+            [ "string",      undef ]
+            [ "My::Package", undef ]
+            [ "sub_name",    undef ]
+
+    quoted item (includes things wrapped in [] or ())
+        These will be an arrayref containing a string of everything between
+        the opening and closing quote character, and the starting quote
+        character.
+
+            [ "string",    "'" ]
+            [ "qw/a b c/", "[" ]
+            [ "a => 'apple', b => 'bat'", "(" ]
+
+    The parse() methid will populate the parts() accessor with an arrayref
+    containing all the parsed parts.
+
+        print Dumper( $parser->parts() );
+        $VAR1 = [
+            [ 'bareword', undef ],
+            '=>',
+            [ 'quoted string', '\'' ],
+            ...,
+        ];
+
+ACCESSORS
+    These are the read/write accessors used by Parser. Not all of these act
+    on an array element, some will directly alter the current line.
+
+    line()
+        This will retrieve the current line from Devel-Declare. If given a
+        value that value will be set as the current line using
+        Devel-Declare.
+
+    name()
+        Name of the declarator as provided via the parser.
+
+    declarator()
+        Name of the declarator as provided via the Devel-Declare.
+
+    original_offset()
+        Offset on the line when the parsing was started.
+
+    offset()
+        Current line offset.
+
+    parts()
+        Arrayref of parts (may be undef)
+
+    new_parts()
+        Arrayref of new parts (may be undef)
+
+    end_char()
+        Will be set to the character just after the completely parsed line
+        (usually { or ;)
+
+    original()
+        Set to the original line at construction. NOTE this will likely not
+        be complete, if the declaration spans multiple lines it will not be
+        known when this is set.
+
+    prototype()
+        Used internally for prototype tracking.
+
+    contained()
+        True if the parser determined this was a contained call.
+
+OVERRIDABLE METHODS
+    These are methods you can, should, or may override in your baseclass.
+
+    rewrite()
+        You must override this.
+
+    type()
+        Returns 'const', see the Devel::Declare docs for other options.
+
+    quote_chars()
+        Specify the starting characters for quoted strings. (returns a list)
+
+    end_chars()
+        Characters to recognise as end of statement characters (; and {)
+        (returns a list)
+
+    end_hook()
+        A chance for you to modify the new line just before it is set.
+
+    inject()
+        Code to inject into functions enhanced by this parser.
+
+    run_at_compile()
+        Run at compile time instead of run-time. NOTE this is not compatible
+        with any other options. If you have this return true the line will
+        not be parsed at all.
+
+    args()
+        Should return a list of names which will be injected as shifted
+        scalars in codeblocks created by function that have been enhanced by
+        this parser.
+
+API METHODS
+    This is a general description of the inner working of the parser, most
+    of these are used internally before rewrite() is called. Many of these
+    will do nothing, or possibly do damage if used within rewrite(). This
+    section is mainly useful if you want to patch Parser, or override
+    parse() with your own implementation Not Recommended.
+
+    parse()
+
+  POSITION TRACKING
+    advance( $num_chars )
+        Advances the offset by $num_chars.
+
+    skip_declarator()
+        Skips the declarator at the start of the line. Only call this once,
+        and within parse()
+
+    skipspace()
+        Advances the offset past any whitespace.
+
+  PART RETRIEVAL (MODIFYING)
+    These get parts from the current position in the line. These WILL modify
+    the line and/or the position in the line.
+
+    get_item()
+        Returns a part datastructure.
+
+    get_remaining_items()
+    peek_quote()
+
+  PART CHECKING
+    These check against parts that have already been parsed out of the line.
+
+    has_comma()
+    has_fat_comma()
+    has_keyword()
+    has_non_string_or_quote_parts()
+    has_string_or_quote_parts()
+
+  LOOKING AHEAD
+    These *should* not modify anything, but rather return parts of the line
+    yet to be parsed.
+
+    peek_is_block()
+    peek_is_end()
+    peek_is_other()
+    peek_is_quote()
+    peek_is_word()
+    peek_item()
+    peek_item_type()
+    peek_num_chars($num)
+    peek_other()
+    peek_remaining()
+    peek_word()
+
+PRIVATE METHODS LIST
+    This is a list of private methods. This list is provided to help you
+    avoid overriding something you shouldn't. This list is not guarenteed to
+    be complete.
+
+    _stash()
+    _unstash()
+    _sanity()
+    _new()
+    _debug()
+    _apply_rewrite()
+    _block_end_injection()
+    _close()
+    _contained()
+    _edit_block_end()
+    _item_via_()
+    _linestr_offset_from_dd()
+    _move_via_()
+    _open()
+    _peek_is_package()
+    _peek_is_word()
+    _quoted_from_dd()
+    _scope_end()
+
+AUTHORS
+    Chad Granum exodist7@gmail.com
+
+COPYRIGHT
+    Copyright (C) 2010 Chad Granum
+
+    Devel-Declare-Parser is free software; Standard perl licence.
+
+    Devel-Declare-Parser is distributed in the hope that it will be useful,
+    but WITHOUT ANY WARRANTY; without even the implied warranty of
+    MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the license for
+    more details.
+
