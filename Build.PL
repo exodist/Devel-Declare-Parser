@@ -4,7 +4,7 @@ use warnings;
 use Module::Build;
 
 my $build = Module::Build->new(
-    module_name => 'Exporter::Declare',
+    module_name => 'Devel::Declare::Parser',
     license     => 'perl',
     dist_author => 'Chad Granum <exodist7@gmail.com>',
     create_readme => 1,
@@ -17,8 +17,8 @@ my $build = Module::Build->new(
     },
     meta_merge => {
         resources => {
-            repository  => 'http://github.com/exodist/Exporter-Declare',
-            bugtracker  => 'http://github.com/exodist/Exporter-Declare/issues',
+            repository  => 'http://github.com/exodist/Devel-Declare-Parser',
+            bugtracker  => 'http://github.com/exodist/Devel-Declare-Parser/issues',
         },
     }
 );
