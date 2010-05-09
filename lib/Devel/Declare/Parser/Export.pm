@@ -1,9 +1,9 @@
-package Exporter::Declare::Parser::Export;
+package Devel::Declare::Parser::Export;
 use strict;
 use warnings;
 
-use base 'Exporter::Declare::Parser';
-BEGIN { Exporter::Declare::Parser->register( 'export' )};
+use base 'Devel::Declare::Parser';
+BEGIN { Devel::Declare::Parser->register( 'export' )};
 
 sub args {(qw/name parser sub/)}
 
@@ -141,7 +141,7 @@ __END__
 
 =head1 NAME
 
-Exporter::Declare::Parser::Export - The parser behind the export() magic.
+Devel::Declare::Parser::Export - The parser behind the export() magic.
 
 =head1 AUTHORS
 

@@ -1,8 +1,8 @@
-package Exporter::Declare::Parser::Method;
+package Devel::Declare::Parser::Method;
 use strict;
 use warnings;
 
-use base 'Exporter::Declare::Parser::Sublike';
+use base 'Devel::Declare::Parser::Sublike';
 __PACKAGE__->register( 'method' );
 
 sub inject {('my $self = shift')}
@@ -13,7 +13,7 @@ sub recipe_inject { 'my $self = shift; ' }
 
 =head1 NAME
 
-Exporter::Declare::Parser::Method - Parser that shifts $self automatically in
+Devel::Declare::Parser::Method - Parser that shifts $self automatically in
 codeblocks.
 
 =head1 TESTING ONLY

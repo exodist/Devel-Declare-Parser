@@ -1,8 +1,8 @@
-package Exporter::Declare::Parser::Codeblock;
+package Devel::Declare::Parser::Codeblock;
 use strict;
 use warnings;
 
-use base 'Exporter::Declare::Parser';
+use base 'Devel::Declare::Parser';
 __PACKAGE__->register( 'codeblock' );
 
 sub args {(qw/sub/)}
@@ -24,7 +24,7 @@ __END__
 
 =head1 NAME
 
-Exporter::Declare::Parser::Codeblock - Parser for functions that just take a
+Devel::Declare::Parser::Codeblock - Parser for functions that just take a
 codeblock.
 
 =head1 AUTHORS

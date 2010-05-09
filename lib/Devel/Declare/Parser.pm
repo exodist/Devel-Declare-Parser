@@ -1,4 +1,4 @@
-package Exporter::Declare::Parser;
+package Devel::Declare::Parser;
 use strict;
 use warnings;
 
@@ -12,11 +12,11 @@ use Carp;
 # Parser Registration and Retrieval
 #
 our %PARSER_AUTOLOAD = (
-    begin     => 'Exporter::Declare::Parser::Begin',
-    codeblock => 'Exporter::Declare::Parser::Codeblock',
-    export    => 'Exporter::Declare::Parser::Export',
-    method    => 'Exporter::Declare::Parser::Method',
-    sublike   => 'Exporter::Declare::Parser::Sublike',
+    begin     => 'Devel::Declare::Parser::Begin',
+    codeblock => 'Devel::Declare::Parser::Codeblock',
+    export    => 'Devel::Declare::Parser::Export',
+    method    => 'Devel::Declare::Parser::Method',
+    sublike   => 'Devel::Declare::Parser::Sublike',
 );
 
 our %REGISTER;
@@ -624,12 +624,12 @@ __END__
 
 =head1 NAME
 
-Exporter::Declare::Parser - Devel-Declare parser's for Exporter-Declare
+Devel::Declare::Parser - Devel-Declare parser's for Exporter-Declare
 
 =head1 DESCRIPTION
 
 Parser is a higher-level API sitting on top of L<Devel::Declare>. It is used by
-L<Exporter::Declare> to simplify exporting of L<Devel::Declare> magic.
+L<Devel::Declare> to simplify exporting of L<Devel::Declare> magic.
 Devel-Declare allows you to modify a subroutine call as it is being compiled
 (or right before it is compiled).
 

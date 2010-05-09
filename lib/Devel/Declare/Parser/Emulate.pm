@@ -1,7 +1,7 @@
-package Exporter::Declare::Parser::Emulate;
+package Devel::Declare::Parser::Emulate;
 use strict;
 use warnings;
-use base 'Exporter::Declare::Parser';
+use base 'Devel::Declare::Parser';
 use Data::Dumper;
 
 __PACKAGE__->add_accessor( 'test_line' );
@@ -63,7 +63,7 @@ sub _apply_rewrite {
 
 =head1 NAME
 
-Exporter::Declare::Parser::Emulate - Parser that emulates Devel-Declare
+Devel::Declare::Parser::Emulate - Parser that emulates Devel-Declare
 
 =head1 TESTING ONLY
 

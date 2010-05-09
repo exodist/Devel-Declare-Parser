@@ -1,8 +1,8 @@
-package Exporter::Declare::Parser::Begin;
+package Devel::Declare::Parser::Begin;
 use strict;
 use warnings;
 
-use base 'Exporter::Declare::Parser';
+use base 'Devel::Declare::Parser';
 __PACKAGE__->register( 'begin' );
 
 sub run_at_compile { 1 }
@@ -13,7 +13,7 @@ __END__
 
 =head1 NAME
 
-Exporter::Declare::Parser::Begin - Parser for functions that happen at compile
+Devel::Declare::Parser::Begin - Parser for functions that happen at compile
 time.
 
 =head1 AUTHORS

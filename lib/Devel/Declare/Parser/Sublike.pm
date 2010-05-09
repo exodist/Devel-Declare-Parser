@@ -1,8 +1,8 @@
-package Exporter::Declare::Parser::Sublike;
+package Devel::Declare::Parser::Sublike;
 use strict;
 use warnings;
 
-use base 'Exporter::Declare::Parser';
+use base 'Devel::Declare::Parser';
 __PACKAGE__->register( 'sublike' );
 
 sub args {(qw/name sub/)}
@@ -29,7 +29,7 @@ __END__
 
 =head1 NAME
 
-Exporter::Declare::Parser::Sublike - Parser that acts just like 'sub'
+Devel::Declare::Parser::Sublike - Parser that acts just like 'sub'
 
 =head1 AUTHORS
 
