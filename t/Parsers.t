@@ -18,9 +18,10 @@ BEGIN {
     use warnings;
     use Test::More;
     use Exporter::Declare;
+    use Data::Dumper;
 
     export sl sublike {
-        ok( $name, "Got name" );
+        is( $name, 'a', "Got name" );
         pop(@_)->();
     }
 
@@ -29,6 +30,7 @@ BEGIN {
     }
 
     export mth method {
+        is( $name, 'a', "Got name" );
         pop(@_)->(1);
     }
 
@@ -68,7 +70,7 @@ cb {
     $ran{cd}++;
 }
 
-mth {
+mth a {
     ok( $self, "got self" );
     $ran{mth}++;
 }

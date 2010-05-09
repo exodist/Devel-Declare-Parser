@@ -1,18 +1,77 @@
 NAME
-    Exporter::Declare - Declarative function exporting
+    Exporter::Declare - Declarative exports and simple Devel-Declare
+    interface.
 
 DESCRIPTION
     Declarative function exporting. You can export subs as usual with
     @EXPORT, or export anonymous subs under whatever name you want. You can
-    also extend Exporter::Declare very easily. You can also add an export
-    from outside the package using the export() class method on it.
+    also extend Exporter::Declare very easily.
 
     Exporter-Declare also provides a friendly interface to Devel::Declare
-    magic. If you want to provide methods that work like MooseX::Declare or
-    other Devel::Declare enhanced function, this is the module for you.
-    There are a few common recipes available for formatting exports.
+    magic. Provides a simple way to export functions with Devel-Declare
+    magic. With Exporter-Declare and its parser library, you can write
+    Devel::Declare enhanced functions without directly using Devel-Declare
+    or writing a custom parser.
 
-EXPORTER SYNOPSIS
+MANY FACES OF EXPORT
+    The export() function is the magical interface. It can be used in many
+    forms:
+
+    our @EXPORT = @names;
+        Technically your not actually using the function here, but it is
+        worth noting that use of a package variable '@EXPORT' works just
+        like Exporter. However there is not currently an @EXPORT_OK.
+
+    export( $name )
+        Export the sub specified by the string $name. This sub must be
+        defined in the current package.
+
+    export( $name, \&code )
+    export name { ... }
+        Export the coderef under the specified name.
+
+    export( $name, $parser )
+        Export the sub specified by the string $name, applying the magic
+        from the specified parser whenever the function is called by a class
+        that imports it.
+
+    export( $name, $parser, \&code )
+    export name parser { ... }
+        Export the coderef under the specified name, applying the magic from
+        the specified parser whenever the function is called by a class that
+        imports it.
+
+    export name ( ... ) { ... }
+        same as 'export name { ... }' except that parameters can be passed
+        into the parser. Currently you cannot put any variables in the ( ...
+        ) as it will be evaluated as a string outside of any closures - This
+        may be fixed in the future.
+
+    export name parser ( ... ) { ... }
+        same as 'export name parser { ... }' except that parameters can be
+        passed into the parser. Currently you cannot put any variables in
+        the ( ... ) as it will be evaluated as a string outside of any
+        closures - This may be fixed in the future.
+
+    $class->export( $name )
+        Method form of 'export( $name )'. $name must be the name of a
+        subroutine in the package $class. The export will be added as an
+        export of $class.
+
+    $class->export( $name, \&code )
+        Method form of 'export( $name, \&code )'. The export will be added
+        as an export of $class.
+
+    $class->export( $name, $parser )
+        Method form of 'export( $name, $parser )'. $name must be the name of
+        a subroutine in the package $class. The export will be added as an
+        export of $class.
+
+    $class->export( $name, $parser, \&code )
+        Method form of 'export( $name, $parser, \&code )'. The export will
+        be added as an export of $class.
+
+EXPORTING SYNOPSIS
   Basic usage (No Devel-Declare)
         package MyPackage;
         use strict;
@@ -22,12 +81,14 @@ EXPORTER SYNOPSIS
         # works as expected
         our @EXPORT = qw/a/;
 
+        sub a { 'a' }
+
         # Declare an anonymous export
         export b => sub { 'b' };
+        export( 'c', sub { 'c' });
 
-        export 'c';
-        sub c { 'c' }
-        sub a { 'a' }
+        export 'd';
+        sub d { 'd' }
 
         1;
 
@@ -46,14 +107,25 @@ EXPORTER SYNOPSIS
             'c'
         }
 
-        export d
-        {
-            'd'
-        }
-
         1;
 
   Exporting Devel-Declare magic
+    To export Devel-Declare magic you specify a parser as a second parameter
+    to export(). Please see the RECIPIES section for more information about
+    each parser.
+
+        package MyPackage;
+        use strict;
+        use warnings;
+        use Exporter::Declare;
+
+        ################################
+        # export( 'name', 'parser_name' );
+        #   or
+        # export( 'name', 'parser name', sub { ... })
+        #   or
+        # export name parser_name { ... }
+
         export sl sublike {
             ok( $name, "Got name" );
             $code = pop(@_);
@@ -64,6 +136,7 @@ EXPORTER SYNOPSIS
         }
 
         export mth method {
+            ok( $name, "Got name" );
             $code = pop(@_);
         }
 
@@ -74,10 +147,11 @@ EXPORTER SYNOPSIS
         # Inject something into the start of the code block
         export injected method ( inject => 'my $arg2 = shift; ' ) { ... }
 
-        # If you are brave and read up on Recipe's:
-        export custom ( recipe => \%myrecipe ) { ... }
-
     Then to use those in the importing class:
+
+        use strict;
+        use warnings;
+        use MyPackage;
 
         sl a { ... }
 
@@ -121,25 +195,25 @@ IMPORTER SYNOPSIS
         use warnings;
         use MyThingThatExports qw/ sub_a sub_b /;
 
-RECIPES
-  Writing custom recipes
-    See Exporter::Declare::Recipe
+PARSERS
+  Writing custom parsers
+    See Exporter::Declare::Parser
 
-  Provided Recipes
-    Exporter::Declare::Recipe::Export
+  Provided Parsers
+    Exporter::Declare::Parser::Export
         Used for export()
 
-    Exporter::Declare::Recipe::Sublike
+    Exporter::Declare::Parser::Sublike
         Things that act like sub name {}
 
-    Exporter::Declare::Recipe::Codeblock
+    Exporter::Declare::Parser::Codeblock
         Things that take a single codeblock as an arg. Like defining sub
         mysub(&) except that you do not need a semicolon at the end.
 
-    Exporter::Declare::Recipe::Method
+    Exporter::Declare::Parser::Method
         Define codeblocks that have $self automatically shifted off.
 
-    Exporter::Declare::Recipe::Begin
+    Exporter::Declare::Parser::Begin
         Define a sub that works like 'use' in that it runs at compile time
         (like wrapping it in BEGIN{})
 

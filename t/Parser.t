@@ -16,7 +16,7 @@ BEGIN {
     use_ok( $RCLASS );
 }
 
-my $one = $RCLASS->_new( 'test', 'test', 11 );
+my $one = $RCLASS->_new( 'test', 'test', 10 );
 $one->line( qq/my \$xxx = test apple boy => "aaaaa" 'bbbb', (a => "b") ['a', 'b'] . \$xxx \%hash \@array \*glob Abc::DEF::HIJ { ... }/ );
 $one->parse;
 

@@ -6,7 +6,7 @@ use Carp;
 use Scalar::Util qw/blessed/;
 use Exporter::Declare::Parser;
 
-our $VERSION = 0.005;
+our $VERSION = 0.006;
 our @CARP_NOT = ( __PACKAGE__ );
 export( 'export', 'export' );
 
@@ -49,7 +49,7 @@ sub exports {
 sub parsers {
     my $class = shift;
     no strict 'refs';
-    return { %{ $class . '::RECIPES' } };
+    return { %{ $class . '::PARSERS' } };
 }
 
 sub export_to {
@@ -71,7 +71,7 @@ sub export_to {
         }
         my $parser = $parsers->{ $name };
         next unless $parser;
-        $parser->rewrite( $dest, $name );
+        $parser->enhance( $dest, $name );
     }
 }
 
@@ -107,7 +107,7 @@ sub export {
         no strict 'refs';
         no warnings 'once';
         $export = \%{ $exporter . '::EXPORT' };
-        $parsers = \%{ $exporter . '::RECIPES' };
+        $parsers = \%{ $exporter . '::PARSERS' };
     }
     $export->{ $name } = $sub;
     $parsers->{ $name } = $rclass if $rclass;
@@ -157,28 +157,34 @@ Technically your not actually using the function here, but it is worth noting
 that use of a package variable '@EXPORT' works just like L<Exporter>. However
 there is not currently an @EXPORT_OK.
 
-=item export( $name )
+=item export($name)
 
 Export the sub specified by the string $name. This sub must be defined in the
 current package.
 
-=item export( $name, \&code )
+=item export($name, sub { ... })
+
+=item export name => sub { ... }
 
 =item export name { ... }
 
-Export the coderef under the specified name.
+Export the coderef under the specified name. In the second 2 forms an ending
+semicolon is optional, as well name can be quoted in single or double quotes,
+or left as a bareword.
 
 =item export( $name, $parser )
 
 Export the sub specified by the string $name, applying the magic from the
 specified parser whenever the function is called by a class that imports it.
 
-=item export( $name, $parser, \&code )
+=item export( $name, $parser, sub { ... })
 
 =item export name parser { ... }
 
 Export the coderef under the specified name, applying the magic from the
-specified parser whenever the function is called by a class that imports it.
+specified parser whenever the function is called by a class that imports it. In
+the second form name and parser can be quoted in single or double quotes, or
+left as a bareword.
 
 =item export name ( ... ) { ... }
 
@@ -187,12 +193,16 @@ parser. Currently you cannot put any variables in the ( ... ) as it will be
 evaluated as a string outside of any closures - This may be fixed in the
 future.
 
+Name can be a quoted string or a bareword.
+
 =item export name parser ( ... ) { ... }
 
 same as 'export name parser { ... }' except that parameters can be passed into
 the parser. Currently you cannot put any variables in the ( ... ) as it will be
 evaluated as a string outside of any closures - This may be fixed in the
 future.
+
+Name and parser can be a quoted string or a bareword.
 
 =item $class->export( $name )
 
@@ -269,13 +279,6 @@ parser.
     use warnings;
     use Exporter::Declare;
 
-    ################################
-    # export( 'name', 'parser_name' );
-    #   or
-    # export( 'name', 'parser name', sub { ... })
-    #   or
-    # export name parser_name { ... }
-
     export sl sublike {
         ok( $name, "Got name" );
         $code = pop(@_);
@@ -350,7 +353,7 @@ Then to use those in the importing class:
     use warnings;
     use MyThingThatExports qw/ sub_a sub_b /;
 
-=head1 RECIPES
+=head1 PARSERS
 
 =head2 Writing custom parsers
 
@@ -366,7 +369,7 @@ Used for export()
 
 =item L<Exporter::Declare::Parser::Sublike>
 
-Things that act like sub name {}
+Things that act like 'sub name {}'
 
 =item L<Exporter::Declare::Parser::Codeblock>
 
@@ -381,6 +384,8 @@ Define codeblocks that have $self automatically shifted off.
 
 Define a sub that works like 'use' in that it runs at compile time (like
 wrapping it in BEGIN{})
+
+This requires L<Devel::BeginLift>.
 
 =back
 

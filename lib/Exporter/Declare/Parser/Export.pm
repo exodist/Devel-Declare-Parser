@@ -5,15 +5,35 @@ use warnings;
 use base 'Exporter::Declare::Parser';
 BEGIN { Exporter::Declare::Parser->register( 'export' )};
 
+sub args {(qw/name parser sub/)}
+
 __PACKAGE__->add_accessor( '_inject' );
+__PACKAGE__->add_accessor( 'parser' );
 
 sub inject {
     my $self = shift;
-    my $items = $self->_inject();
-    return unless $items;
-    return ( $items ) unless ref( $items );
-    return @$items if ref( $items ) eq 'ARRAY';
-    $self->bail( "$items is not a valid injection" );
+    my @out;
+
+    if ( my $pname = $self->parser ) {
+        my $pclass = $self->get_parser( $pname );
+        $self->bail( "'$pname' is not a valid parser, did you forget to load the class that provides it?" )
+            unless $pclass;
+        push @out => map { "my \$$_ = shift" } $pclass->args;
+    }
+
+    if( my $items = $self->_inject() ) {
+        my $ref = ref( $items );
+        if ( $ref eq 'ARRAY' ) {
+            push @out => @$items;
+        }
+        elsif ( !$ref ) {
+            push @out => $items;
+        }
+        else {
+            $self->bail( "$items is not a valid injection" );
+        }
+    }
+    return @out;
 }
 
 sub _check_parts {
@@ -55,25 +75,34 @@ sub sort_parts {
         );
     }
 
-    push @names => 'undef' unless @names > 1;
-
     return ( \@names, \@specs );
 }
 
 sub rewrite {
     my $self = shift;
-
     $self->_check_parts;
 
     my $is_arrow = $self->parts->[1]
                 && ($self->parts->[1] eq '=>' || $self->parts->[1] eq ',');
-    if (( $is_arrow && $self->parts->[2]->[0] eq 'sub')
-    || ( @{ $self->parts } == 1 )) {
-        $self->new_parts([ $self->parts->[0] ]);
-        return 1;
+    if ( $is_arrow && $self->parts->[2] ) {
+        my $is_ref = !ref( $self->parts->[2] );
+        my $is_sub = $is_ref ? 0 : $self->parts->[2]->[0] eq 'sub';
+
+        if (( $is_arrow && $is_ref )
+        || ( @{ $self->parts } == 1 )) {
+            $self->new_parts([ $self->parts->[0], $self->parts->[2] ]);
+            return 1;
+        }
+        elsif (( $is_arrow && $is_sub )
+        || ( @{ $self->parts } == 1 )) {
+            $self->new_parts([ $self->parts->[0] ]);
+            return 1;
+        }
     }
 
     my ( $names, $specs ) = $self->sort_parts();
+    $self->parser( $names->[1] ? $names->[1]->[0] : undef );
+    push @$names => 'undef' unless @$names > 1;
     $self->new_parts( $names );
 
     if ( @$specs ) {

@@ -10,7 +10,6 @@ sub test { $_[-1]->( @_ ) }
 BEGIN {
     use_ok( 'Exporter::Declare::Parser::Export' );
     Exporter::Declare::Parser::Export->enhance( 'main', 'test' );
-#    Exporter::Declare::Parser::Export->DEBUG(1);
 }
 
 our $ran;
@@ -60,10 +59,11 @@ test name => sub {
 };
 is( $ran, 5, "Arrow form + semicolon" );
 
-test name parser {
+test name export {
     $ran++;
-    is( $_[0], 'name', "name" );
-    is( $_[1], 'parser', 'parser' );
+    is( $name, 'name', "name" );
+    is( $parser, 'export', 'parser' );
+    ok( $sub, "got sub" );
 }
 is( $ran, 6, "name + parser + block" );
 
@@ -73,30 +73,37 @@ test name {
 }
 is( $ran, 7, "name + block" );
 
-test name parser ( inject => 'my ($name, $parser) = @_' ) {
+test name export ( inject => 'my ($x, $y) = (1,1)' ) {
     $ran++;
     is( $name, 'name', "name" );
-    is( $parser, 'parser', 'parser' );
+    is( $parser, 'export', 'parser' );
+    ok( $sub, "got sub" );
+    is( $x, 1, "x" );
+    is( $y, 1, "y" );
 }
 is( $ran, 8, "name + parser + specs + block" );
 
-test name ( inject => 'my ($name, $parser) = @_' ) {
+test name ( inject => 'my ($x, $y) = (1,1)' ) {
     $ran++;
-    is( $name, 'name', "name" );
-    is( $parser, undef, 'no parser' );
+    is( $_[0], 'name', "name" );
+    is( $_[1], undef, 'no parser' );
+    is( $x, 1, "x" );
+    is( $y, 1, "y" );
 }
 is( $ran, 9, "name + specs + block" );
 
 test
     name
         (
-            inject => 'my ($name, $parser) = @_'
-        )
-{
+            inject => 'my ($x, $y) = (1,1)'
+        ) {
     $ran++;
-    is( $name, 'name', "name" );
-    is( $parser, undef, 'no parser' );
+    is( $_[0], 'name', "name" );
+    is( $_[1], undef, 'no parser' );
+    is( $x, 1, "x" );
+    is( $y, 1, "y" );
 }
+
 is( $ran, 10, "name + specs + block stepped" );
 
 test name, sub {
@@ -104,6 +111,20 @@ test name, sub {
     is( $_[0], 'name', "name" );
 };
 is( $ran, 11, "comma form" );
+
+    test b => sub { $ran++ };
+
+is( $ran, 12, "indented" );
+
+my $x = test b => sub { $ran++ };
+
+is( $ran, 13, "assignment" );
+
+test 'a long name' {
+    $ran++;
+    is( $_[0], 'a long name', "name" );
+};
+is( $ran, 14, "long name" );
 
 ok( !eval <<'EOT', "Invalid syntax" );
 test name : sub {

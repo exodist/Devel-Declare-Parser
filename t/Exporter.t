@@ -46,15 +46,17 @@ BEGIN {
 
     our @EXPORT = qw/f/;
 
-    export e => sub { 'e' };
+    export e => sub { 'e' }
 
     export('y', undef, sub { 100 });
 
     export x export { 100 }
 
+    export l { 100 }
+
     throws_ok { eval ' export z z { 1 } 1' || die $@ }
-    qr/'z' is not a valid recipe, did you forget to load the class that provides it?/,
-    "Invalid recipe";
+    qr/'z' is not a valid parser, did you forget to load the class that provides it?/,
+    "Invalid parser";
 
     sub f { 'f' }
 };
@@ -93,7 +95,7 @@ isa_ok( 'UseExtended', 'Exporter::Declare' );
 isa_ok( 'UseExtended', 'Exporter::Declare::Base' );
 is_deeply(
     [ sort keys %{ NormalUse->exports }],
-    [ 'e', 'f', 'x', 'y', ],
+    [ 'e', 'f', 'l', 'x', 'y', ],
     "Exports in normal use",
 );
 
@@ -127,6 +129,7 @@ can_ok( 'UsePrefix', 'blah_c' );
     use Test::More;
     use Test::Exception::LessClever;
     BEGIN { NormalUse->import() };
+    is( l(), 100, "l works" );
     is( x(), 100, "x works" );
     my $x = x a { 100 }
 

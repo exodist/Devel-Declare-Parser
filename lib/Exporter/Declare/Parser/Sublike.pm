@@ -5,6 +5,8 @@ use warnings;
 use base 'Exporter::Declare::Parser';
 __PACKAGE__->register( 'sublike' );
 
+sub args {('name')}
+
 sub rewrite {
     my $self = shift;
 

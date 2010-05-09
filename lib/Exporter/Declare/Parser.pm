@@ -22,11 +22,11 @@ our %PARSER_AUTOLOAD = (
 our %REGISTER;
 sub register {
     my $class = shift;
-    my ( $name  ) = @_;
+    my ( $name, $rclass ) = @_;
     croak( "No name for registration" ) unless $name;
     croak( "Parser $name already registered" )
         if $REGISTER{ $name };
-    $REGISTER{ $name } = $class;
+    $REGISTER{ $name } = $rclass || caller;
 }
 
 sub get_parser {
@@ -141,10 +141,13 @@ sub end_hook { 1 };
 sub rewrite {
     my $self = shift;
     my $class = blessed( $self );
-    bail( "You must override rewrite() in $class" );
+    $self->DEBUG(1);
+    $self->diag( caller(1) );
+    $self->bail( "You must override rewrite() in $class" );
 }
 sub inject {()}
 sub run_at_compile { 0 }
+sub args {()}
 
 ###############
 # Informational
@@ -249,7 +252,8 @@ sub advance {
 
 sub skip_declarator {
     my $self = shift;
-    $self->advance( length($self->name) );
+    my $item = $self->peek_is_other;
+    $self->advance( length($item) );
 }
 
 sub skipspace {
@@ -370,7 +374,8 @@ sub peek_is_other {
     my $self = shift;
     my $linestr = $self->line;
     substr( $linestr, 0, $self->offset ) = '';
-    return unless $linestr =~ m/^(\S+)/;
+    my $quote = join( '', $self->quote_chars );
+    return unless $linestr =~ m/^([^\s;{$quote]+)/;
     return $1;
 }
 
@@ -502,7 +507,7 @@ sub _apply_rewrite {
     $self->end_hook( \$newline )
         if ( $self->end_char() ne '{' );
 
-    diag(
+    $self->diag(
         "Old Line: " . $self->line() . "\n",
         "New Line: " . $newline . "\n",
     ) if $self->DEBUG;
@@ -511,8 +516,8 @@ sub _apply_rewrite {
 
 sub prefix {
     my $self = shift;
-    my $idx = $self->original_offset - 1;
-    my $start = $idx < 0 ? '' : substr( $self->line, 0, $idx);
+    my $idx = $self->original_offset;
+    my $start = substr( $self->line, 0, $idx);
     return $start;
 }
 
