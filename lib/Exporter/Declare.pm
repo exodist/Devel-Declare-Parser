@@ -19,6 +19,7 @@ sub import {
     my $base = $specs->{extend} ? $class : 'Exporter::Declare::Base';
 
     no strict 'refs';
+    no warnings 'once';
     push @{ $caller . '::ISA' } => $base
         unless grep { $_ eq $base } @{ $caller . '::ISA' };
 }
@@ -40,6 +41,7 @@ sub _import_args {
 sub exports {
     my $class = shift;
     no strict 'refs';
+    no warnings 'once';
     return {
         ( map { $_ => $_ } @{ $class . '::EXPORT' }),
         %{ $class . '::EXPORT' },
@@ -49,6 +51,7 @@ sub exports {
 sub parsers {
     my $class = shift;
     no strict 'refs';
+    no warnings 'once';
     return { %{ $class . '::PARSERS' } };
 }
 
@@ -67,6 +70,7 @@ sub export_to {
         my $writename = $prefix ? $prefix . $name : $name;
         {
             no strict 'refs';
+            no warnings 'once';
             *{ $dest . '::' . $writename } = $sub;
         }
         my $parser = $parsers->{ $name };
