@@ -3,13 +3,13 @@ use strict;
 use warnings;
 use Test::More;
 use Test::Exception::LessClever;
-use Exporter::Declare::Parser;
-use Exporter::Declare::Parser::Begin;
+use Devel::Declare::Parser;
+use Devel::Declare::Parser::Begin;
 
 BEGIN {
     eval { require Devel::BeginLift; 1 }
       || plan skip_all => 'Devel::BeginList is not installed';
-    Exporter::Declare::Parser::Begin->enhance( 'main', 'beg' );
+    Devel::Declare::Parser::Begin->enhance( 'main', 'beg' );
 }
 
 our $ran;

@@ -7,8 +7,6 @@ __PACKAGE__->register( 'method' );
 
 sub inject {('my $self = shift')}
 
-sub recipe_inject { 'my $self = shift; ' }
-
 1;
 
 =head1 NAME

@@ -7,8 +7,8 @@ use Test::Exception::LessClever;
 sub test { $_[-1]->( @_ ) }
 
 BEGIN {
-    use_ok( 'Exporter::Declare::Parser::Method' );
-    Exporter::Declare::Parser::Method->enhance( 'main', 'test' );
+    use_ok( 'Devel::Declare::Parser::Method' );
+    Devel::Declare::Parser::Method->enhance( 'main', 'test' );
 }
 
 our $ran = 1;

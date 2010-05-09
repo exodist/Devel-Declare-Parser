@@ -4,48 +4,33 @@ use warnings;
 use Test::More;
 use Test::Exception::LessClever;
 
-BEGIN {
-    use_ok( 'Exporter::Declare::Parser::Export' );
-    use_ok( 'Exporter::Declare::Parser::Sublike' );
-    use_ok( 'Exporter::Declare::Parser::Codeblock' );
-    use_ok( 'Exporter::Declare::Parser::Method' );
-    use_ok( 'Exporter::Declare::Parser::Begin' );
+sub sl {
+    $_[-1]->();
 }
 
-BEGIN {
-    package MyExporter;
-    use strict;
-    use warnings;
-    use Test::More;
-    use Test::Exception::LessClever;
-    use Exporter::Declare;
-    use Data::Dumper;
-
-    export sl sublike {
-        lives_ok { $name } "name is shifted";
-        ok( $sub, "got sub" );
-        $sub->();
-    }
-
-    export cb codeblock {
-        ok( $sub, "got sub" );
-        $sub->();
-    }
-
-    export mth method {
-        is( $name, 'a', "Got name" );
-        ok( $sub, "got sub" );
-        $sub->( 'a' );
-    }
-
-    if ( eval { require Devel::BeginLift; 1 } ) {
-        export beg begin {
-            pop(@_)->();
-        };
-    }
+sub cb {
+    $_[-1]->();
 }
 
-BEGIN { MyExporter->import };
+sub mth {
+    $_[-1]->( 'self' );
+}
+
+sub beg {
+    $_[-1]->();
+};
+
+BEGIN {
+    use_ok( 'Devel::Declare::Parser::Sublike' );
+    Devel::Declare::Parser::Sublike->enhance( 'main', 'sl' );
+    use_ok( 'Devel::Declare::Parser::Codeblock' );
+    Devel::Declare::Parser::Codeblock->enhance( 'main', 'cb' );
+    use_ok( 'Devel::Declare::Parser::Method' );
+    Devel::Declare::Parser::Method->enhance( 'main', 'mth' );
+    use_ok( 'Devel::Declare::Parser::Begin' );
+    Devel::Declare::Parser::Begin->enhance( 'main', 'beg' )
+        if ( eval { require Devel::BeginLift; 1 } );
+}
 
 our %ran;
 
@@ -79,7 +64,7 @@ cb {
 }
 
 mth a {
-    ok( $self, "got self" );
+    is( $self, 'self', "got self" );
     $ran{mth}++;
 }
 

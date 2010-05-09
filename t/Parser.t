@@ -10,8 +10,8 @@ use Carp;
 our $CLASS;
 our $RCLASS;
 BEGIN {
-    $CLASS = 'Exporter::Declare::Parser';
-    $RCLASS = 'Exporter::Declare::Parser::Emulate';
+    $CLASS = 'Devel::Declare::Parser';
+    $RCLASS = 'Devel::Declare::Parser::Emulate';
     use_ok( $CLASS );
     use_ok( $RCLASS );
 }

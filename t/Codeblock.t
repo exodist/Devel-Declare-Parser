@@ -10,9 +10,8 @@ sub test {
 }
 
 BEGIN {
-    use_ok( 'Exporter::Declare::Parser::Codeblock' );
-    Exporter::Declare::Parser::Codeblock->enhance( 'main', 'test' );
-#    Exporter::Declare::Parser->DEBUG(1);
+    use_ok( 'Devel::Declare::Parser::Codeblock' );
+    Devel::Declare::Parser::Codeblock->enhance( 'main', 'test' );
 }
 
 our $ran;

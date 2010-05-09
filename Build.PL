@@ -14,6 +14,8 @@ my $build = Module::Build->new(
         'Devel::Declare' => 0.006000,
         'Test::Exception::LessClever' => 0,
         'Test::Simple' => 0.88,
+        'Scalar::Util' => 0,
+        'Carp' => 0,
     },
     meta_merge => {
         resources => {
