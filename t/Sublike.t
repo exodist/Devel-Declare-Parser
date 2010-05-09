@@ -46,9 +46,11 @@ test "quoted name" {
 }
 is( $ran, 7, "ran singleline block no semicolon" );
 
-
-ok( !eval 'test { die( "Should not get here" ) }; 1', "invalid syntax" );
-like( $@, qr/You must provide a name to test\(\) at /, "Useful message" );
+test {
+    $ran++;
+    is( $_[0], undef, 'no name' );
+}
+is( $ran, 8, "ran with no name" );
 
 ok( !eval 'test a b c { "Should not get here" } 1', "invalid syntax" );
 like( $@, qr/Syntax error near: 'b' and 'c' at /, "Useful message" );

@@ -5,7 +5,7 @@ use Test::More;
 use Test::Exception::LessClever;
 use Data::Dumper;
 
-sub test { $_[-1]->( @_ ) }
+sub test { $_[-1]->( @_ ); $_[-1] }
 
 BEGIN {
     use_ok( 'Exporter::Declare::Parser::Export' );
@@ -36,6 +36,10 @@ test
     },
 );
 is( $ran, 2, "ran stepped enclosed" );
+
+my $sub = test name => sub($$) { }
+isa_ok( $sub, 'CODE' );
+is( prototype( $sub ), '$$', "Carried prototype" );
 
 test name => sub {
     $ran++;

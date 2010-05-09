@@ -5,14 +5,11 @@ use warnings;
 use base 'Exporter::Declare::Parser';
 __PACKAGE__->register( 'sublike' );
 
-sub args {('name')}
+sub args {(qw/name sub/)}
 
 sub rewrite {
     my $self = shift;
 
-    if ( !$self->parts || !@{ $self->parts }) {
-        $self->bail( "You must provide a name to " . $self->name . "()" );
-    }
     if ( @{ $self->parts } > 1 ) {
         ( undef, my @bad ) = @{ $self->parts };
         $self->bail(
@@ -22,7 +19,7 @@ sub rewrite {
         );
     }
 
-    $self->new_parts([ $self->parts->[0] ]);
+    $self->new_parts([ $self->parts->[0] || 'undef' ]);
     1;
 }
 

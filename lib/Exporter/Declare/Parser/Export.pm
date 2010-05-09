@@ -78,8 +78,27 @@ sub sort_parts {
     return ( \@names, \@specs );
 }
 
+sub strip_prototype {
+    my $self = shift;
+    my $parts = $self->parts;
+    return unless @$parts > 3;
+    return unless ref( $parts->[2] );
+    return unless $parts->[2]->[0] eq 'sub';
+    return unless ref( $parts->[3] );
+    return unless $parts->[3]->[1] eq '(';
+    return unless !$parts->[2]->[1];
+    $self->prototype(
+          $parts->[3]->[1]
+        . $parts->[3]->[0]
+        . $self->end_quote($parts->[3]->[1])
+    );
+    delete $parts->[3];
+}
+
 sub rewrite {
     my $self = shift;
+
+    $self->strip_prototype;
     $self->_check_parts;
 
     my $is_arrow = $self->parts->[1]

@@ -140,10 +140,103 @@ export anonymous subs under whatever name you want. You can also extend
 Exporter::Declare very easily.
 
 Exporter-Declare also provides a friendly interface to L<Devel::Declare> magic.
-Provides a simple way to export functions with Devel-Declare magic. With
-Exporter-Declare and its parser library, you can write L<Devel::Declare>
-enhanced functions without directly using Devel-Declare or writing a custom
+With Exporter-Declare and its parser library, you can write L<Devel::Declare>
+enhanced functions without directly using Devel-Declare. If no available parser
+meets your needs you can subclass L<Exporter::Declare::Parser> which provides a
+higher-level interface to L<Devel::Declare>
+
+=head1 BASIC SYNOPSIS
+
+If you want to avoid magic you can still easily declare exports:
+
+    package MyPackage;
+    use strict;
+    use warnings;
+    use Exporter::Declare;
+
+    # works as expected
+    our @EXPORT = qw/a/;
+
+    sub a { 'a' }
+
+    # Declare an anonymous export
+    export b => sub { 'b' };
+    export( 'c', sub { 'c' });
+
+    export 'd';
+    sub d { 'd' }
+
+    1;
+
+=head1 ENHANCED INTERFACE SYNOPSIS
+
+Notice, no need for '=> sub', and trailing semicolon is optional.
+
+    package MyPackage;
+    use strict;
+    use warnings;
+    use Exporter::Declare;
+
+    # Declare an anonymous export
+    export b { 'b' }
+
+    export c {
+        'c'
+    }
+
+    1;
+
+=head1 EXPORTING DEVEL-DECLARE INTERFACES SYNOPSIS
+
+To export Devel-Declare magic you specify a parser as a second parameter to
+export(). Please see the PARSERS section for more information about each
 parser.
+
+    package MyPackage;
+    use strict;
+    use warnings;
+    use Exporter::Declare;
+
+    export sl sublike {
+        # $name and $sub are automatically shifted for you.
+        ...
+    }
+
+    export mth method {
+        # $name and $sub are automatically shifted for you.
+        ...
+    }
+
+    export cb codeblock {
+        # $sub is automatically shifted for you.
+        ...
+    }
+
+    export beg begin {
+        my @args = @_;
+        ...
+    };
+
+    # Inject something into the start of the code block
+    export injected method ( inject => 'my $arg2 = shift; ' ) { ... }
+
+Then to use those in the importing class:
+
+    use strict;
+    use warnings;
+    use MyPackage;
+
+    sl name { ... }
+
+    mth name {
+        # $self is automatically shifted for you.
+        ...
+    }
+
+    cb { ... }
+
+    # Same as BEGIN { beg(@args) };
+    beg( @args );
 
 =head1 MANY FACES OF EXPORT
 
@@ -209,7 +302,7 @@ Name and parser can be a quoted string or a bareword.
 Method form of 'export( $name )'. $name must be the name of a subroutine in the
 package $class. The export will be added as an export of $class.
 
-=item $class->export( $name, \&code )
+=item $class->export( $name, sub { ... })
 
 Method form of 'export( $name, \&code )'. The export will be added as an export
 of $class.
@@ -220,138 +313,45 @@ Method form of 'export( $name, $parser )'. $name must be the name of a
 subroutine in the package $class. The export will be added as an export of
 $class.
 
-=item $class->export( $name, $parser, \&code )
+=item $class->export( $name, $parser, sub { ... })
 
 Method form of 'export( $name, $parser, \&code )'. The export will be added as
 an export of $class.
 
 =back
 
-=head1 EXPORTING SYNOPSIS
+=head1 IMPORTER SYNOPSIS
 
-=head2 Basic usage (No Devel-Declare)
+=head2 Normal
 
-    package MyPackage;
-    use strict;
-    use warnings;
-    use Exporter::Declare;
+    package MyThing;
+    use MyThingThatExports;
 
-    # works as expected
-    our @EXPORT = qw/a/;
+=head2 Import with a prefix
 
-    sub a { 'a' }
+    package MyThing;
+    use MyThingThatExports ':prefix:myprefix';
 
-    # Declare an anonymous export
-    export b => sub { 'b' };
-    export( 'c', sub { 'c' });
+=head2 Import only some subs
 
-    export 'd';
-    sub d { 'd' }
+    package MyThing;
+    use MyThingThatExports qw/ sub_a sub_b /;
 
-    1;
+=head1 Extending (Writing your own Exporter-Declare)
 
-=head2 Enhanced Exporting
-
-Notice, no need for '=> sub', and trailing semicolon is optional.
-
-    package MyPackage;
-    use strict;
-    use warnings;
-    use Exporter::Declare;
-
-    # Declare an anonymous export
-    export b { 'b' }
-
-    export c {
-        'c'
-    }
-
-    1;
-
-=head2 Exporting Devel-Declare magic
-
-To export Devel-Declare magic you specify a parser as a second parameter to
-export(). Please see the RECIPIES section for more information about each
-parser.
-
-    package MyPackage;
-    use strict;
-    use warnings;
-    use Exporter::Declare;
-
-    export sl sublike {
-        ok( $name, "Got name" );
-        $code = pop(@_);
-    }
-
-    export cb codeblock {
-        $code = pop(@_);
-    }
-
-    export mth method {
-        ok( $name, "Got name" );
-        $code = pop(@_);
-    }
-
-    export beg begin {
-        my @args = @_;
-    };
-
-    # Inject something into the start of the code block
-    export injected method ( inject => 'my $arg2 = shift; ' ) { ... }
-
-Then to use those in the importing class:
-
-    use strict;
-    use warnings;
-    use MyPackage;
-
-    sl a { ... }
-
-    cb { ... }
-
-    mth {
-        ok( $self, "got self" );
-        ...
-    }
-
-    # Same as BEGIN { beg(@args) };
-    beg( @args );
-
-=head2 Extending (Writing your own Exporter-Declare)
+Doing this will make it so that importing your package will not only import
+your exports, but it will also make the importing package capable of exporting
+subs.
 
     package MyExporterDeclare;
     use strict;
     use warnings;
     use Exporter::Declare ':extend';
 
-    export my_export => sub {
+    export my_export export {
         my ( $name, $sub ) = @_;
         export( $name, $sub );
-    };
-
-=head1 IMPORTER SYNOPSIS
-
-=head2 Normal
-
-    package MyThing;
-    use strict;
-    use warnings;
-    use MyThingThatExports;
-
-=head2 Import with a prefix
-
-    package MyThing;
-    use strict;
-    use warnings;
-    use MyThingThatExports ':prefix:myprefix';
-
-=head2 Import only some subs
-
-    package MyThing;
-    use strict;
-    use warnings;
-    use MyThingThatExports qw/ sub_a sub_b /;
+    }
 
 =head1 PARSERS
 
@@ -365,20 +365,20 @@ See L<Exporter::Declare::Parser>
 
 =item L<Exporter::Declare::Parser::Export>
 
-Used for export()
+Used for functions that export, accepting a name, a parser, and options.
 
 =item L<Exporter::Declare::Parser::Sublike>
 
 Things that act like 'sub name {}'
 
+=item L<Exporter::Declare::Parser::Method>
+
+Same ad Sublike except codeblocks have $self automatically shifted off.
+
 =item L<Exporter::Declare::Parser::Codeblock>
 
 Things that take a single codeblock as an arg. Like defining sub mysub(&)
 except that you do not need a semicolon at the end.
-
-=item L<Exporter::Declare::Parser::Method>
-
-Define codeblocks that have $self automatically shifted off.
 
 =item L<Exporter::Declare::Parser::Begin>
 

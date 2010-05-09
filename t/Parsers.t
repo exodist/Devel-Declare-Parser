@@ -22,16 +22,19 @@ BEGIN {
 
     export sl sublike {
         is( $name, 'a', "Got name" );
-        pop(@_)->();
+        ok( $sub, "got sub" );
+        $sub->();
     }
 
     export cb codeblock {
-        pop(@_)->();
+        ok( $sub, "got sub" );
+        $sub->();
     }
 
     export mth method {
         is( $name, 'a', "Got name" );
-        pop(@_)->(1);
+        ok( $sub, "got sub" );
+        $sub->( 'a' );
     }
 
     if ( eval { require Devel::BeginLift; 1 } ) {

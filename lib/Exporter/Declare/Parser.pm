@@ -101,7 +101,7 @@ sub _new {
 # Accessors
 #
 
-my @ACCESSORS = qw/parts new_parts end_char original/;
+my @ACCESSORS = qw/parts new_parts end_char original prototype contained/;
 
 {
     my $count = 0;
@@ -272,12 +272,31 @@ sub parse {
     $self->original( $self->line );
     $self->skip_declarator;
     $self->skipspace;
-    return if $self->peek_num_chars(1) eq '(';
+    #return if $self->peek_num_chars(1) eq '(';
 
-    $self->parts( $self->get_remaining_items );
+    my @parts = $self->get_item;
+    $self->parts( \@parts );
+    push @parts => @{ $self->get_remaining_items || [] }
+        unless $self->_contained;
+
     $self->end_char( $self->peek_num_chars(1));
 
-    $self->_apply_rewrite if $self->rewrite;
+    $self->_apply_rewrite if $self->contained
+                          || $self->rewrite;
+}
+
+sub _contained {
+    my $self = shift;
+    my $parts = $self->parts;
+    return 0 unless ref( $parts->[0] );
+    return 0 unless defined($parts->[0]->[1]);
+    return 0 unless $parts->[0]->[1] eq '(';
+    $self->skipspace;
+    return 0 unless $self->peek_num_chars(1);
+    return 0 if $self->peek_num_chars(1) eq '{';
+    $self->contained(1);
+    $self->new_parts( $parts );
+    return 1;
 }
 
 sub peek_item_type {
@@ -498,10 +517,19 @@ sub format_part {
 sub _apply_rewrite {
     my $self = shift;
     my $newline = $self->_open();
-    $newline .= join( ', ',
-        map { $self->format_part($_) }
-            @{ $self->new_parts || [] }
-    );
+
+    if ( $self->contained ) {
+        my $old = $self->new_parts->[0]->[0];
+        $old =~ s/\n/ /g;
+        $newline .= $old;
+    }
+    else {
+        $newline .= join( ', ',
+            map { $self->format_part($_) }
+                @{ $self->new_parts || [] }
+        );
+    }
+
     $newline .= $self->_close();
 
     $self->end_hook( \$newline )
@@ -529,16 +557,19 @@ sub suffix {
 sub _open {
     my $self = shift;
     my $start = $self->prefix;
-    return $start . $self->name . "( ";
+    return $start . $self->name . "(";
 }
 
 sub _close {
     my $self = shift;
     my $end = $self->end_char();
     my $after_end = $self->suffix;
-    return " )$end $after_end" unless $end eq '{';
+    return ") $end$after_end" if $self->contained;
+    return ")$end $after_end" unless $end eq '{';
     return ( @{$self->new_parts || []} ? ', ' : '' )
-         . 'sub { '
+         . 'sub'
+         . ( $self->prototype ? $self->prototype : '' )
+         .' { '
          . join( '; ',
             $self->_block_end_injection,
             $self->inject

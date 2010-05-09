@@ -5,6 +5,8 @@ use warnings;
 use base 'Exporter::Declare::Parser';
 __PACKAGE__->register( 'codeblock' );
 
+sub args {(qw/sub/)}
+
 sub rewrite {
     my $self = shift;
     $self->bail(

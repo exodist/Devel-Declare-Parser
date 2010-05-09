@@ -43,7 +43,7 @@ is_deeply(
 
 is(
     $one->line(),
-    qq/my \$xxx = test( 'apple', 'boy', =>, "aaaaa", 'bbbb', ,, (a => "b"), ['a', 'b'], ., \$xxx, \%hash, \@array, \*glob, 'Abc::DEF::HIJ', sub { BEGIN { $RCLASS\->_edit_block_end('$one') };  ... } );/,
+    qq/my \$xxx = test('apple', 'boy', =>, "aaaaa", 'bbbb', ,, (a => "b"), ['a', 'b'], ., \$xxx, \%hash, \@array, \*glob, 'Abc::DEF::HIJ', sub { BEGIN { $RCLASS\->_edit_block_end('$one') };  ... } );/,
     "Got new line"
 );
 
@@ -58,7 +58,7 @@ is_deeply(
     ],
     "Parts"
 );
-is( $one->line, "test( 'apple', 'boy' ); ", "Non-codeblock" );
+is( $one->line, "test('apple', 'boy'); ", "Non-codeblock" );
 
 
 done_testing;

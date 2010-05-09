@@ -6,11 +6,13 @@ use Test::Exception::LessClever;
 
 sub test {
     $_[0]->();
+    $_[0];
 }
 
 BEGIN {
     use_ok( 'Exporter::Declare::Parser::Codeblock' );
     Exporter::Declare::Parser::Codeblock->enhance( 'main', 'test' );
+#    Exporter::Declare::Parser->DEBUG(1);
 }
 
 our $ran;
@@ -58,5 +60,9 @@ test
     }
 );
 is( $ran, 7, "ran enclosed" );
+
+my $ran2 = 0;
+test( sub{ $ran++ }) && $ran2++;
+ok( $ran2, "Works in check" );
 
 done_testing();

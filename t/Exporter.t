@@ -6,6 +6,9 @@ use Test::More;
 use Test::Exception::LessClever;
 
 use_ok( "Exporter::Declare" );
+BEGIN {
+    use Exporter::Declare::Parser;
+}
 
 BEGIN {
     package Extended;
