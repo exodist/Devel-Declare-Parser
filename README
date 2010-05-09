@@ -14,6 +14,73 @@ DESCRIPTION
     assembled into the new line.
 
 SYNOPSIS
+        package MyParser;
+        use strict;
+        use warnings;
+
+        use base 'Devel::Declare::Parser';
+
+        # Register your parser with a simple name.
+        # This is optional, but helpful to people using your parser.
+        __PACKAGE__->register( 'my_method' );
+
+        sub rewrite {
+            my $self = shift;
+
+            # If there is more than one argument before the opening { throw an
+            # exception.
+            if ( @{ $self->parts } > 1 ) {
+                # Get the parts and remove the first (good) item.
+                my @parts = @{ $self->parts };
+                shift( @parts );
+
+                # use bail() instead of die or croak for context.
+                $self->bail(
+                    "Syntax error near: " . join( ' and ',
+                        map { $self->format_part($_)} @parts
+                    )
+                );
+            }
+
+            # Set the first argument, or make it undef.
+            $self->new_parts([ $self->parts->[0] || 'undef' ]);
+        }
+
+        sub inject {
+            my $self = shift;
+            # Inject self-shifting into the codeblock
+            return ('my $self = shift');
+        }
+
+        1;
+
+    To use it:
+
+        package My::Package;
+        use strict;
+        use warnings;
+
+        use MyParser qw/my_func/;
+
+        sub my_func {
+            my ( $name, $code ) = @_;
+            croak( "You did not define a subroutine" )
+                unless $code;
+            return $code unless $name;
+            no strict 'refs';
+            *$name = $code;
+        }
+
+        my_func do_all_stuff {
+            # Automatically have $self
+            $self->do_stuff;
+            $self->do_more_stuff;
+        }
+
+        my $anon = my_func { $self->... };
+
+        1;
+
 INTERNALS WARNING
     Parser objects are blessed arrays, not hashrefs.
 
@@ -299,24 +366,25 @@ PRIVATE METHODS LIST
     avoid overriding something you shouldn't. This list is not guarenteed to
     be complete.
 
-    _stash()
-    _unstash()
-    _sanity()
-    _new()
-    _debug()
     _apply_rewrite()
     _block_end_injection()
     _close()
     _contained()
+    _debug()
     _edit_block_end()
+    _is_defenition()
     _item_via_()
     _linestr_offset_from_dd()
     _move_via_()
+    _new()
     _open()
     _peek_is_package()
     _peek_is_word()
     _quoted_from_dd()
+    _sanity()
     _scope_end()
+    _stash()
+    _unstash()
 
 AUTHORS
     Chad Granum exodist7@gmail.com

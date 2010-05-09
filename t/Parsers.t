@@ -4,7 +4,16 @@ use warnings;
 use Test::More;
 use Test::Exception::LessClever;
 
-sub sl {
+BEGIN {
+    use_ok( 'Devel::Declare::Parser::Sublike', 'sl' );
+    use_ok( 'Devel::Declare::Parser::Codeblock', 'cb' );
+    use_ok( 'Devel::Declare::Parser::Method', 'mth' );
+    use_ok( 'Devel::Declare::Parser::Begin', 'beg' )
+        if ( eval { require Devel::BeginLift; 1 } );
+}
+
+sub
+sl {
     $_[-1]->();
 }
 
@@ -20,17 +29,6 @@ sub beg {
     $_[-1]->();
 };
 
-BEGIN {
-    use_ok( 'Devel::Declare::Parser::Sublike' );
-    Devel::Declare::Parser::Sublike->enhance( 'main', 'sl' );
-    use_ok( 'Devel::Declare::Parser::Codeblock' );
-    Devel::Declare::Parser::Codeblock->enhance( 'main', 'cb' );
-    use_ok( 'Devel::Declare::Parser::Method' );
-    Devel::Declare::Parser::Method->enhance( 'main', 'mth' );
-    use_ok( 'Devel::Declare::Parser::Begin' );
-    Devel::Declare::Parser::Begin->enhance( 'main', 'beg' )
-        if ( eval { require Devel::BeginLift; 1 } );
-}
 
 our %ran;
 

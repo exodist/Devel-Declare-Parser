@@ -8,7 +8,17 @@ use B::Hooks::EndOfScope;
 use Scalar::Util qw/blessed/;
 use Carp;
 
-our $VERSION = '0.010';
+our $VERSION = '0.011';
+
+sub import {
+    my $class = shift;
+    my @args = @_;
+    return unless @args;
+
+    my $caller = caller;
+
+    $class->enhance( $caller, $_ ) for @args;
+}
 
 ###############
 # Parser Registration and Retrieval
@@ -280,8 +290,8 @@ sub parse {
     $self->original( $self->line );
     $self->skip_declarator;
     $self->skipspace;
-    #return if $self->peek_num_chars(1) eq '(';
 
+    return if $self->_is_defenition;
     my @parts = $self->get_item;
     $self->parts( \@parts );
     push @parts => @{ $self->get_remaining_items || [] }
@@ -291,6 +301,13 @@ sub parse {
 
     $self->_apply_rewrite if $self->contained
                           || $self->rewrite;
+}
+
+sub _is_defenition {
+    my $self = shift;
+    my $name = $self->declarator;
+    return 1 if $self->line =~ m/sub[\s\n]+$name/sm;
+    return 0;
 }
 
 sub _contained {
@@ -642,6 +659,73 @@ is to move, copy, or create new 'parts' which will then be assembled into the
 new line.
 
 =head1 SYNOPSIS
+
+    package MyParser;
+    use strict;
+    use warnings;
+
+    use base 'Devel::Declare::Parser';
+
+    # Register your parser with a simple name.
+    # This is optional, but helpful to people using your parser.
+    __PACKAGE__->register( 'my_method' );
+
+    sub rewrite {
+        my $self = shift;
+
+        # If there is more than one argument before the opening { throw an
+        # exception.
+        if ( @{ $self->parts } > 1 ) {
+            # Get the parts and remove the first (good) item.
+            my @parts = @{ $self->parts };
+            shift( @parts );
+
+            # use bail() instead of die or croak for context.
+            $self->bail(
+                "Syntax error near: " . join( ' and ',
+                    map { $self->format_part($_)} @parts
+                )
+            );
+        }
+
+        # Set the first argument, or make it undef.
+        $self->new_parts([ $self->parts->[0] || 'undef' ]);
+    }
+
+    sub inject {
+        my $self = shift;
+        # Inject self-shifting into the codeblock
+        return ('my $self = shift');
+    }
+
+    1;
+
+To use it:
+
+    package My::Package;
+    use strict;
+    use warnings;
+
+    use MyParser qw/my_func/;
+
+    sub my_func {
+        my ( $name, $code ) = @_;
+        croak( "You did not define a subroutine" )
+            unless $code;
+        return $code unless $name;
+        no strict 'refs';
+        *$name = $code;
+    }
+
+    my_func do_all_stuff {
+        # Automatically have $self
+        $self->do_stuff;
+        $self->do_more_stuff;
+    }
+
+    my $anon = my_func { $self->... };
+
+    1;
 
 =head1 INTERNALS WARNING
 
@@ -1031,16 +1115,6 @@ complete.>
 
 =over 4
 
-=item _stash()
-
-=item _unstash()
-
-=item _sanity()
-
-=item _new()
-
-=item _debug()
-
 =item _apply_rewrite()
 
 =item _block_end_injection()
@@ -1049,13 +1123,19 @@ complete.>
 
 =item _contained()
 
+=item _debug()
+
 =item _edit_block_end()
+
+=item _is_defenition()
 
 =item _item_via_()
 
 =item _linestr_offset_from_dd()
 
 =item _move_via_()
+
+=item _new()
 
 =item _open()
 
@@ -1065,7 +1145,13 @@ complete.>
 
 =item _quoted_from_dd()
 
+=item _sanity()
+
 =item _scope_end()
+
+=item _stash()
+
+=item _unstash()
 
 =back
 
