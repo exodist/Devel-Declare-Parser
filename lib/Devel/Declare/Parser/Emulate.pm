@@ -3,6 +3,7 @@ use strict;
 use warnings;
 use base 'Devel::Declare::Parser';
 use Data::Dumper;
+use Carp;
 
 __PACKAGE__->add_accessor( 'test_line' );
 __PACKAGE__->register( 'test' );

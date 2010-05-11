@@ -41,9 +41,9 @@ is_deeply(
     "Parsed properly"
 );
 
-is(
+like(
     $one->line(),
-    qq/my \$xxx = test('apple', 'boy', =>, "aaaaa", 'bbbb', ,, (a => "b"), ['a', 'b'], ., \$xxx, \%hash, \@array, \*glob, 'Abc::DEF::HIJ', sub { BEGIN { $RCLASS\->_edit_block_end('$one') };  ... } );/,
+    qr/my \$xxx = test\s*\('apple', 'boy', =>, "aaaaa", 'bbbb', ,, \(a => "b"\), \['a', 'b'\], ., \$xxx, \%hash, \@array, \*glob, 'Abc::DEF::HIJ', sub \{ BEGIN \{ .*\->_edit_block_end\('.*'\) \};  \.\.\. \} \);/,
     "Got new line"
 );
 
@@ -58,7 +58,40 @@ is_deeply(
     ],
     "Parts"
 );
-is( $one->line, "test('apple', 'boy'); ", "Non-codeblock" );
+like(
+    $one->line,
+    qr/^test\s*\('apple', 'boy'\);/,
+    "Non-codeblock"
+);
+
+$one = $RCLASS->_new( 'test', 'test', 0 );
+$one->line( <<EOT );
+test
+    apple
+        =>
+            (
+    blah => 'blah',
+    uhg => sub {
+        aaa(
+            'aaa'
+        );
+    },
+);
+EOT
+$one->parse;
+is( $one->line, <<EOT, "umodified arrow ( form" );
+test
+    apple
+        =>
+            (
+    blah => 'blah',
+    uhg => sub {
+        aaa(
+            'aaa'
+        );
+    },
+);
+EOT
 
 
 done_testing;

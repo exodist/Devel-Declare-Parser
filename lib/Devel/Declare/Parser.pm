@@ -8,7 +8,7 @@ use B::Hooks::EndOfScope;
 use Scalar::Util qw/blessed/;
 use Carp;
 
-our $VERSION = '0.011';
+our $VERSION = '0.012';
 
 sub import {
     my $class = shift;
@@ -252,15 +252,15 @@ sub advance {
     $self->offset( $self->offset + $len );
 }
 
-#sub strip_length {
-#    my $self = shift;
-#    my ($len) = @_;
-#    return unless $len;
-#
-#    my $linestr = $self->line();
-#    substr($linestr, $self->offset, $len) = '';
-#    $self->line($linestr);
-#}
+sub strip_length {
+    my $self = shift;
+    my ($len) = @_;
+    return unless $len;
+
+    my $linestr = $self->line();
+    substr($linestr, $self->offset, $len) = '';
+    $self->line($linestr);
+}
 
 sub skip_declarator {
     my $self = shift;
@@ -292,12 +292,12 @@ sub parse {
     $self->skipspace;
 
     return if $self->_is_defenition;
-    my @parts = $self->get_item;
-    $self->parts( \@parts );
-    push @parts => @{ $self->get_remaining_items || [] }
-        unless $self->_contained;
+    return if $self->_contained;
+    return if $self->_arrow_contained;
+    $self->parts( $self->strip_remaining_items );
 
     $self->end_char( $self->peek_num_chars(1));
+    $self->strip_length(1) if $self->end_char eq '{';
 
     $self->_apply_rewrite if $self->contained
                           || $self->rewrite;
@@ -312,16 +312,31 @@ sub _is_defenition {
 
 sub _contained {
     my $self = shift;
-    my $parts = $self->parts;
-    return 0 unless ref( $parts->[0] );
-    return 0 unless defined($parts->[0]->[1]);
-    return 0 unless $parts->[0]->[1] eq '(';
-    $self->skipspace;
     return 0 unless $self->peek_num_chars(1);
-    return 0 if $self->peek_num_chars(1) eq '{';
+    return 0 if $self->peek_num_chars(1) ne '(';
     $self->contained(1);
-    $self->new_parts( $parts );
     return 1;
+}
+
+sub _arrow_contained {
+    my $self = shift;
+    $self->skipspace;
+
+    #Strip first item
+    my $first = $self->strip_item;
+    my $offset = $self->offset;
+
+    # look at whats next
+    $self->skipspace;
+    my $stuff = $self->peek_remaining();
+
+    # Put first back.
+    my $line = $self->line;
+    substr( $line, $offset, 0 ) = $self->format_part( $first, 1 ) || "";
+    $self->offset( $offset );
+    $self->line( $line );
+
+    return 1 if $stuff =~ m/^=>[\s\n]*\(/sm;
 }
 
 sub peek_item_type {
@@ -430,26 +445,17 @@ sub peek_num_chars {
     return $out[0];
 }
 
-sub get_item {
-    my $self = shift;
-    return $self->_item_via_( 'advance' );
-}
-
-#sub strip_item {
+#sub get_item {
 #    my $self = shift;
-#    return $self->_item_via_( 'strip_length' );
+#    return $self->_item_via_( 'advance' );
 #}
 
-sub get_remaining_items {
+sub strip_item {
     my $self = shift;
-    my @parts;
-    while ( my $part = $self->get_item ) {
-        push @parts => $part;
-    }
-    return \@parts;
+    return $self->_item_via_( 'strip_length' );
 }
 
-#sub strip_remaining_items {
+#sub get_remaining_items {
 #    my $self = shift;
 #    my @parts;
 #    while ( my $part = $self->strip_item ) {
@@ -457,6 +463,15 @@ sub get_remaining_items {
 #    }
 #    return \@parts;
 #}
+
+sub strip_remaining_items {
+    my $self = shift;
+    my @parts;
+    while ( my $part = $self->strip_item ) {
+        push @parts => $part;
+    }
+    return \@parts;
+}
 
 sub peek_remaining {
     my $self = shift;
@@ -502,7 +517,7 @@ sub _item_via_ {
     my ( $item, $type ) = $self->peek_item;
     return unless $item;
 
-    $self->_move_via_( 'advance', $type, $item );
+    $self->_move_via_( $move_method, $type, $item );
     return $item;
 }
 
@@ -531,9 +546,10 @@ sub _move_via_ {
 
 sub format_part {
     my $self = shift;
-    my ( $part ) = @_;
+    my ( $part, $no_added_quotes ) = @_;
     return unless $part;
     return $part unless ref($part);
+    return $part->[0] if $no_added_quotes && !$part->[1];
     return "'" . $part->[0] . "'"
         unless $part->[1];
     return $part->[1] . $part->[0] . $self->end_quote( $part->[1] );
@@ -544,53 +560,40 @@ sub _apply_rewrite {
     my $newline = $self->_open();
 
     if ( $self->contained ) {
-        my $old = $self->new_parts->[0]->[0];
-        $old =~ s/\n/ /g;
-        $newline .= $old;
+        $self->new_parts->[0] = $self->new_parts->[0]->[0];
     }
-    else {
-        $newline .= join( ', ',
-            map { $self->format_part($_) }
-                @{ $self->new_parts || [] }
-        );
-    }
+
+    $newline .= join( ', ',
+        map { $self->format_part($_) }
+            @{ $self->new_parts || [] }
+    );
 
     $newline .= $self->_close();
 
     $self->end_hook( \$newline )
         if ( $self->end_char() ne '{' );
 
+    my $oline = $self->line;
+    my $line = $self->line;
+    substr( $line, $self->offset, 0 ) = $newline;
     $self->diag(
-        "Old Line: " . $self->line() . "\n",
-        "New Line: " . $newline . "\n",
+        "XXX Line: " . $oline . "\n",
+        "Old Line: " . $self->original . "\n",
+        "New Line: " . $line . "\n",
     ) if $self->DEBUG;
-    $self->line( $newline );
-}
-
-sub prefix {
-    my $self = shift;
-    my $idx = $self->original_offset;
-    my $start = substr( $self->line, 0, $idx);
-    return $start;
-}
-
-sub suffix {
-    my $self = shift;
-    return substr( $self->peek_remaining, 1 );
+    $self->line( $line );
 }
 
 sub _open {
     my $self = shift;
-    my $start = $self->prefix;
-    return $start . $self->name . "(";
+    return "(";
 }
 
 sub _close {
     my $self = shift;
     my $end = $self->end_char();
-    my $after_end = $self->suffix;
-    return ") $end$after_end" if $self->contained;
-    return ")$end $after_end" unless $end eq '{';
+    return ")" if $self->contained;
+    return ")" if $end ne '{';
     return ( @{$self->new_parts || []} ? ', ' : '' )
          . 'sub'
          . ( $self->prototype ? $self->prototype : '' )
@@ -599,8 +602,7 @@ sub _close {
             $self->_block_end_injection,
             $self->inject
          )
-         . '; '
-         . $after_end;
+         . '; ';
 }
 
 #############
@@ -630,11 +632,22 @@ sub _scope_end {
     my ( $id ) = @_;
     my $self = _unstash( $id );
 
-    my $linestr = $self->line;
+    my $oldlinestr = $self->line;
+    my $linestr = $oldlinestr;
     $self->offset( $self->_linestr_offset_from_dd() );
-    substr($linestr, $self->offset, 0) = ' );';
+    if ( $linestr =~ m/}\s*$/ ) {
+        substr($linestr, $self->offset, 0) = ' );';
+    }
+    else {
+        substr($linestr, $self->offset, 0) = ' ) ';
+    }
     $self->end_hook( \$linestr );
     $self->line($linestr);
+    $self->diag(
+        "Old Line: " . $oldlinestr . "\n",
+        "New Line: " . $linestr . "\n",
+    ) if $self->DEBUG;
+
 }
 
 1;

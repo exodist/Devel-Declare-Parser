@@ -4,6 +4,11 @@ use warnings;
 use Test::More;
 use Test::Exception::LessClever;
 
+sub line {
+    ( undef, undef, my $line ) = caller;
+    return $line;
+}
+
 sub test {
     $_[0]->();
     $_[0];
@@ -12,6 +17,7 @@ sub test {
 BEGIN {
     use_ok( 'Devel::Declare::Parser::Codeblock' );
     Devel::Declare::Parser::Codeblock->enhance( 'main', 'test' );
+#    Devel::Declare::Parser::Codeblock->DEBUG(1);
 }
 
 our $ran;
@@ -26,6 +32,8 @@ is( $ran, 2, "ran block no semicolon" );
 test { $ran++ };
 
 is( $ran, 3, "ran block with semicolon" );
+
+is( line(), 36, "Line numbers have not changed" );
 
 test
 {
@@ -63,5 +71,8 @@ is( $ran, 7, "ran enclosed" );
 my $ran2 = 0;
 test( sub{ $ran++ }) && $ran2++;
 ok( $ran2, "Works in check" );
+
+is( line(), 75, "Line numbers have not changed" );
+
 
 done_testing();

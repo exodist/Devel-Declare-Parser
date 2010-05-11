@@ -49,6 +49,12 @@ test {
 }
 is( $ran, 8, "ran with no name" );
 
+test a {
+    $ran++;
+    is( $self, 'a', 'a name' );
+} if 1;
+is( $ran, 9, "ran with postfix conditional" );
+
 
 ok( !eval 'test a b c { "Should not get here" } 1', "invalid syntax" );
 like( $@, qr/Syntax error near: 'b' and 'c' at /, "Useful message" );
