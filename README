@@ -296,11 +296,6 @@ OVERRIDABLE METHODS
     inject()
         Code to inject into functions enhanced by this parser.
 
-    run_at_compile()
-        Run at compile time instead of run-time. NOTE this is not compatible
-        with any other options. If you have this return true the line will
-        not be parsed at all.
-
     args()
         Should return a list of names which will be injected as shifted
         scalars in codeblocks created by function that have been enhanced by

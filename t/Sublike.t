@@ -8,7 +8,7 @@ sub test { $_[-1]->( @_ ) }
 
 BEGIN {
     use_ok( 'Devel::Declare::Parser::Sublike' );
-    Devel::Declare::Parser::Sublike->enhance( 'main', 'test' );
+    Devel::Declare::Interface::enhance( 'main', 'test', 'sublike' );
 }
 
 our $ran;

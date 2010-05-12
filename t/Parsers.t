@@ -8,8 +8,11 @@ BEGIN {
     use_ok( 'Devel::Declare::Parser::Sublike', 'sl' );
     use_ok( 'Devel::Declare::Parser::Codeblock', 'cb' );
     use_ok( 'Devel::Declare::Parser::Method', 'mth' );
-    use_ok( 'Devel::Declare::Parser::Begin', 'beg' )
-        if ( eval { require Devel::BeginLift; 1 } );
+    Devel::Declare::Interface::enhance( 'main', $_->[0], $_->[1] )
+        for [ 'sl', 'sublike'   ],
+            [ 'cb', 'codeblock' ],
+            [ 'mth', 'method'   ],
+            [ 'beg', 'begin'    ];
 }
 
 sub
@@ -40,22 +43,13 @@ sl {
     $ran{sl}++;
 }
 
-lives_and {
-    if ( eval { require Devel::BeginLift; 1 } ) {
-eval <<'EOT' || die( $@ );
-        our $BEGIN;
-        BEGIN { $BEGIN = 1 };
-        $BEGIN = 0;
-        ok( !$BEGIN, "reset begin" );
-        beg( sub { $ran{beg}++; ok( $BEGIN, "In Begin" )});
+our $BEGIN;
+BEGIN { $BEGIN = 1 };
+$BEGIN = 0;
+ok( !$BEGIN, "reset begin" );
+beg( sub { $ran{beg}++; ok( $BEGIN, "In Begin" )});
 
-        ok( $ran{beg}, "ran beg" );
-EOT
-    }
-    else {
-        diag "Skipping Devel::BeginLift tests";
-    }
-} "Devel::Begin";
+ok( $ran{beg}, "ran beg" );
 
 cb {
     $ran{cd}++;

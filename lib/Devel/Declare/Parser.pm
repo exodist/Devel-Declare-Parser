@@ -2,53 +2,106 @@ package Devel::Declare::Parser;
 use strict;
 use warnings;
 
+require Devel::Declare::Interface;
 use Devel::Declare;
 use B::Compiling;
 use B::Hooks::EndOfScope;
 use Scalar::Util qw/blessed/;
 use Carp;
 
-our $VERSION = '0.012';
+our $VERSION = '0.014';
 
-sub import {
+sub new {
     my $class = shift;
-    my @args = @_;
-    return unless @args;
+    my ( $name, $dec, $offset ) = @_;
+    return bless( [ $name, $dec, $offset, $offset ], $class );
+}
 
-    my $caller = caller;
-
-    $class->enhance( $caller, $_ ) for @args;
+sub process {
+    my $self = shift;
+    return unless $self->pre_parse();
+    return unless $self->parse();
+    return unless $self->post_parse();
+    return unless $self->rewrite();
+    return unless $self->write_line();
+    return unless $self->edit_line();
+    return 1;
 }
 
 ###############
-# Parser Registration and Retrieval
+# Abstractable
 #
-our %PARSER_AUTOLOAD = (
-    begin     => 'Devel::Declare::Parser::Begin',
-    codeblock => 'Devel::Declare::Parser::Codeblock',
-    export    => 'Devel::Declare::Parser::Export',
-    method    => 'Devel::Declare::Parser::Method',
-    sublike   => 'Devel::Declare::Parser::Sublike',
-);
 
-our %REGISTER;
-sub register {
-    my $class = shift;
-    my ( $name, $rclass ) = @_;
-    croak( "No name for registration" ) unless $name;
-    croak( "Parser $name already registered" )
-        if $REGISTER{ $name };
-    $REGISTER{ $name } = $rclass || caller;
+sub quote_chars {( qw/ [ ( ' " / )};
+sub end_chars {( qw/ { ; / )};
+
+sub inject {()}
+sub args {()}
+
+sub pre_parse {
+    my $self = shift;
+    $self->skip_declarator;
+    $self->skipspace;
+
+    return if $self->is_defenition;
+    return if $self->is_contained;
+    return if $self->is_arrow_contained;
+    return 1;
 }
 
-sub get_parser {
-    my $class = shift;
-    my ( $name ) = @_;
-    croak( "No name for parser" ) unless $name;
-    if ( !$REGISTER{ $name } && $PARSER_AUTOLOAD{ $name }) {
-        eval "require " . $PARSER_AUTOLOAD{$name} . "; 1" || die($@)
-    }
-    return $REGISTER{ $name };
+sub parse {
+    my $self = shift;
+    $self->parts( $self->strip_remaining_items );
+    $self->end_char( $self->peek_num_chars(1));
+    $self->strip_length(1) if $self->end_char eq '{';
+    return 1;
+}
+
+sub post_parse { 1 }
+
+sub rewrite {
+    my $self = shift;
+    $self->new_parts( $self->parts );
+    1;
+}
+
+sub write_line {
+    my $self = shift;
+    my $newline = $self->open_line();
+
+    $newline .= join( ', ',
+        map { $self->format_part($_) }
+            @{ $self->new_parts || [] }
+    );
+
+    $newline .= $self->close_line();
+
+    my $line = $self->line;
+    substr( $line, $self->offset, 0 ) = $newline;
+    $self->line( $line );
+    $self->diag( "New Line: " . $line . "\n" )
+        if $self->DEBUG;
+
+    1;
+}
+
+sub edit_line { 1 }
+
+sub open_line { "(" }
+
+sub close_line {
+    my $self = shift;
+    my $end = $self->end_char();
+    return ")" if $end ne '{';
+    return ( @{$self->new_parts || []} ? ', ' : '' )
+         . 'sub'
+         . ( $self->prototype ? $self->prototype : '' )
+         .' { '
+         . join( '; ',
+            $self->inject,
+            $self->_block_end_injection,
+         )
+         . '; ';
 }
 
 ##############
@@ -70,50 +123,10 @@ sub _unstash {
 }
 
 ##############
-# Class methods
-#
-
-sub enhance {
-    my $class = shift;
-    my ( $for, $name ) = @_;
-
-    $class->_sanity;
-    if ( $class->run_at_compile ) {
-        Devel::BeginLift->setup_for($for => [$name]);
-    }
-    else {
-        Devel::Declare->setup_for(
-            $for,
-            { $name => { $class->type => sub { $class->_new( $name, @_ )->parse() }}}
-        );
-    }
-}
-
-sub _sanity {
-    my $class = shift;
-    if ( $class->run_at_compile && !eval { require Devel::BeginLift; 1 }) {
-        bail( <<EOT );
-Devel::BeginLift could not be found.
-You must install Devel::BeginLift in order to use/export functions that run at
-compile time.
-Parser: @{[ $class ]}
-This parser requires Devel::BeginLift.
-$@
-EOT
-    }
-}
-
-sub _new {
-    my $class = shift;
-    my ( $name, $dec, $offset ) = @_;
-    return bless( [ $name, $dec, $offset, $offset ], $class );
-}
-
-##############
 # Accessors
 #
 
-my @ACCESSORS = qw/parts new_parts end_char original prototype contained/;
+my @ACCESSORS = qw/parts new_parts end_char prototype contained/;
 
 {
     my $count = 0;
@@ -143,25 +156,6 @@ sub add_accessor {
 }
 
 ###############
-# Abstractable
-#
-
-sub type { 'const' }
-sub quote_chars {( qw/ [ ( ' " / )};
-sub end_chars {( qw/ { ; / )};
-sub end_hook { 1 };
-sub rewrite {
-    my $self = shift;
-    my $class = blessed( $self );
-    $self->DEBUG(1);
-    $self->diag( caller(1) );
-    $self->bail( "You must override rewrite() in $class" );
-}
-sub inject {()}
-sub run_at_compile { 0 }
-sub args {()}
-
-###############
 # Informational
 #
 
@@ -178,7 +172,7 @@ sub end_quote {
     return $QUOTEMAP{ $start } || $start;
 }
 
-sub linenum { PL_compiling->line }
+sub linenum  { PL_compiling->line }
 sub filename { PL_compiling->file }
 
 sub has_comma {
@@ -285,32 +279,14 @@ sub skipspace {
 # Public parsing interface
 #
 
-sub parse {
-    my $self = shift;
-    $self->original( $self->line );
-    $self->skip_declarator;
-    $self->skipspace;
-
-    return if $self->_is_defenition;
-    return if $self->_contained;
-    return if $self->_arrow_contained;
-    $self->parts( $self->strip_remaining_items );
-
-    $self->end_char( $self->peek_num_chars(1));
-    $self->strip_length(1) if $self->end_char eq '{';
-
-    $self->_apply_rewrite if $self->contained
-                          || $self->rewrite;
-}
-
-sub _is_defenition {
+sub is_defenition {
     my $self = shift;
     my $name = $self->declarator;
     return 1 if $self->line =~ m/sub[\s\n]+$name/sm;
     return 0;
 }
 
-sub _contained {
+sub is_contained {
     my $self = shift;
     return 0 unless $self->peek_num_chars(1);
     return 0 if $self->peek_num_chars(1) ne '(';
@@ -318,7 +294,7 @@ sub _contained {
     return 1;
 }
 
-sub _arrow_contained {
+sub is_arrow_contained {
     my $self = shift;
     $self->skipspace;
 
@@ -445,24 +421,10 @@ sub peek_num_chars {
     return $out[0];
 }
 
-#sub get_item {
-#    my $self = shift;
-#    return $self->_item_via_( 'advance' );
-#}
-
 sub strip_item {
     my $self = shift;
     return $self->_item_via_( 'strip_length' );
 }
-
-#sub get_remaining_items {
-#    my $self = shift;
-#    my @parts;
-#    while ( my $part = $self->strip_item ) {
-#        push @parts => $part;
-#    }
-#    return \@parts;
-#}
 
 sub strip_remaining_items {
     my $self = shift;
@@ -555,56 +517,6 @@ sub format_part {
     return $part->[1] . $part->[0] . $self->end_quote( $part->[1] );
 }
 
-sub _apply_rewrite {
-    my $self = shift;
-    my $newline = $self->_open();
-
-    if ( $self->contained ) {
-        $self->new_parts->[0] = $self->new_parts->[0]->[0];
-    }
-
-    $newline .= join( ', ',
-        map { $self->format_part($_) }
-            @{ $self->new_parts || [] }
-    );
-
-    $newline .= $self->_close();
-
-    $self->end_hook( \$newline )
-        if ( $self->end_char() ne '{' );
-
-    my $oline = $self->line;
-    my $line = $self->line;
-    substr( $line, $self->offset, 0 ) = $newline;
-    $self->diag(
-        "XXX Line: " . $oline . "\n",
-        "Old Line: " . $self->original . "\n",
-        "New Line: " . $line . "\n",
-    ) if $self->DEBUG;
-    $self->line( $line );
-}
-
-sub _open {
-    my $self = shift;
-    return "(";
-}
-
-sub _close {
-    my $self = shift;
-    my $end = $self->end_char();
-    return ")" if $self->contained;
-    return ")" if $end ne '{';
-    return ( @{$self->new_parts || []} ? ', ' : '' )
-         . 'sub'
-         . ( $self->prototype ? $self->prototype : '' )
-         .' { '
-         . join( '; ',
-            $self->_block_end_injection,
-            $self->inject
-         )
-         . '; ';
-}
-
 #############
 # Codeblock munging
 #
@@ -641,7 +553,6 @@ sub _scope_end {
     else {
         substr($linestr, $self->offset, 0) = ' ) ';
     }
-    $self->end_hook( \$linestr );
     $self->line($linestr);
     $self->diag(
         "Old Line: " . $oldlinestr . "\n",
@@ -1007,12 +918,6 @@ A chance for you to modify the new line just before it is set.
 =item inject()
 
 Code to inject into functions enhanced by this parser.
-
-=item run_at_compile()
-
-Run at compile time instead of run-time. B<NOTE> this is not compatible with
-any other options. If you have this return true the line will not be parsed at
-all.
 
 =item args()
 

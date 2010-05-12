@@ -6,7 +6,8 @@ use Data::Dumper;
 use Carp;
 
 __PACKAGE__->add_accessor( 'test_line' );
-__PACKAGE__->register( 'test' );
+use Devel::Declare::Interface;
+Devel::Declare::Interface::register_parser( 'test' );
 
 sub line { shift->test_line( @_ )}
 
@@ -45,18 +46,15 @@ sub _linestr_offset_from_dd {
     return length($self->line);
 }
 
-sub type { 'const' }
-sub end_hook { 1 };
-
 sub rewrite {
     my $self = shift;
     $self->new_parts( $self->parts );
     1;
 }
 
-sub _apply_rewrite {
+sub write_line {
     my $self = shift;
-    $self->SUPER::_apply_rewrite();
+    $self->SUPER::write_line();
     $self->_scope_end("$self") if $self->end_char eq '{';
 }
 

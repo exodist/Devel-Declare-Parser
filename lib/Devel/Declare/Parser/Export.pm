@@ -3,7 +3,8 @@ use strict;
 use warnings;
 
 use base 'Devel::Declare::Parser';
-BEGIN { Devel::Declare::Parser->register( 'export' )};
+use Devel::Declare::Interface;
+BEGIN { Devel::Declare::Interface::register_parser( 'export' )};
 
 sub args {(qw/name parser sub/)}
 
@@ -15,7 +16,7 @@ sub inject {
     my @out;
 
     if ( my $pname = $self->parser ) {
-        my $pclass = $self->get_parser( $pname );
+        my $pclass = Devel::Declare::Interface::get_parser( $pname );
         $self->bail( "'$pname' is not a valid parser, did you forget to load the class that provides it?" )
             unless $pclass;
         push @out => map { "my \$$_ = shift" } $pclass->args;

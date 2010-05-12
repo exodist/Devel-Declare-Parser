@@ -3,7 +3,8 @@ use strict;
 use warnings;
 
 use base 'Devel::Declare::Parser';
-__PACKAGE__->register( 'sublike' );
+use Devel::Declare::Interface;
+Devel::Declare::Interface::register_parser( 'sublike' );
 
 sub args {(qw/name sub/)}
 

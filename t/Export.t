@@ -9,7 +9,7 @@ sub test { $_[-1]->( @_ ); $_[-1] }
 
 BEGIN {
     use_ok( 'Devel::Declare::Parser::Export' );
-    Devel::Declare::Parser::Export->enhance( 'main', 'test' );
+    Devel::Declare::Interface::enhance( 'main', 'test', 'export' );
 }
 
 our $ran;

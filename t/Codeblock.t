@@ -16,7 +16,7 @@ sub test {
 
 BEGIN {
     use_ok( 'Devel::Declare::Parser::Codeblock' );
-    Devel::Declare::Parser::Codeblock->enhance( 'main', 'test' );
+    Devel::Declare::Interface::enhance( 'main', 'test', 'codeblock' );
 #    Devel::Declare::Parser::Codeblock->DEBUG(1);
 }
 

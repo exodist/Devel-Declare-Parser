@@ -16,9 +16,9 @@ BEGIN {
     use_ok( $RCLASS );
 }
 
-my $one = $RCLASS->_new( 'test', 'test', 10 );
+my $one = $RCLASS->new( 'test', 'test', 10 );
 $one->line( qq/my \$xxx = test apple boy => "aaaaa" 'bbbb', (a => "b") ['a', 'b'] . \$xxx \%hash \@array \*glob Abc::DEF::HIJ { ... }/ );
-$one->parse;
+$one->process;
 
 is_deeply(
     $one->parts,
@@ -47,9 +47,9 @@ like(
     "Got new line"
 );
 
-$one = $RCLASS->_new( 'test', 'test', 0 );
+$one = $RCLASS->new( 'test', 'test', 0 );
 $one->line( qq/test apple boy;/ );
-$one->parse;
+$one->process;
 is_deeply(
     $one->parts,
     [
@@ -64,7 +64,7 @@ like(
     "Non-codeblock"
 );
 
-$one = $RCLASS->_new( 'test', 'test', 0 );
+$one = $RCLASS->new( 'test', 'test', 0 );
 $one->line( <<EOT );
 test
     apple
@@ -78,7 +78,7 @@ test
     },
 );
 EOT
-$one->parse;
+$one->process;
 is( $one->line, <<EOT, "umodified arrow ( form" );
 test
     apple

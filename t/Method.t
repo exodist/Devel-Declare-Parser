@@ -8,7 +8,7 @@ sub test { $_[-1]->( @_ ) }
 
 BEGIN {
     use_ok( 'Devel::Declare::Parser::Method' );
-    Devel::Declare::Parser::Method->enhance( 'main', 'test' );
+    Devel::Declare::Interface::enhance( 'main', 'test', 'method' );
 }
 
 our $ran = 1;

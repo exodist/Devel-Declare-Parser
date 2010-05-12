@@ -3,7 +3,8 @@ use strict;
 use warnings;
 
 use base 'Devel::Declare::Parser::Sublike';
-__PACKAGE__->register( 'method' );
+use Devel::Declare::Interface;
+Devel::Declare::Interface::register_parser( 'method' );
 
 sub inject {('my $self = shift')}
 
