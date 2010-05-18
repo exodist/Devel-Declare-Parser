@@ -15,9 +15,16 @@ sub inject {('my $self = shift')}
 Devel::Declare::Parser::Method - Parser that shifts $self automatically in
 codeblocks.
 
-=head1 TESTING ONLY
+=head1 DESCRIPTION
 
-For testing purposes only.
+This parser can be used to define a function that takes a single name, and a
+single codeblock. This is just like the 'sub' keyword. The name can be either a
+bareword, or a quoted string.
+
+=head1 EXTRAS WHEN USING THE KEYWORD
+
+Codeblocks defined when using the keyword will have '$self' shifted off
+automatically.
 
 =head1 AUTHORS
 

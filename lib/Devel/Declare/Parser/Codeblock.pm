@@ -6,8 +6,6 @@ use base 'Devel::Declare::Parser';
 use Devel::Declare::Interface;
 Devel::Declare::Interface::register_parser( 'codeblock' );
 
-sub args {(qw/sub/)}
-
 sub rewrite {
     my $self = shift;
     $self->bail(
@@ -27,6 +25,16 @@ __END__
 
 Devel::Declare::Parser::Codeblock - Parser for functions that just take a
 codeblock.
+
+=head1 DESCRIPTION
+
+This parser can be used to define a function that takes ONLY a codeblock. This
+is just like a function with the (&) prototype. The difference here is that you
+do not need to end your block with a semicolon.
+
+=head1 RESTRICTIONS
+
+Any arguments before the codeblock will be treated as a syntax error.
 
 =head1 AUTHORS
 

@@ -9,7 +9,7 @@ use B::Hooks::EndOfScope;
 use Scalar::Util qw/blessed/;
 use Carp;
 
-our $VERSION = '0.014';
+our $VERSION = '0.016';
 
 sub new {
     my $class = shift;
@@ -36,7 +36,6 @@ sub quote_chars {( qw/ [ ( ' " / )};
 sub end_chars {( qw/ { ; / )};
 
 sub inject {()}
-sub args {()}
 
 sub pre_parse {
     my $self = shift;
@@ -567,185 +566,198 @@ __END__
 
 =head1 NAME
 
-Devel::Declare::Parser - Devel-Declare parser's for Devel-Declare
+Devel::Declare::Parser - Higher level interface to Devel-Declare
 
 =head1 DESCRIPTION
 
-Parser is a higher-level API sitting on top of L<Devel::Declare>. It is used by
-L<Devel::Declare> to simplify exporting of L<Devel::Declare> magic.
-Devel-Declare allows you to modify a subroutine call as it is being compiled
-(or right before it is compiled).
+Devel-Declare-Parser is a higher-level API sitting on top of L<Devel::Declare>.
+It is used by L<Devel::Declare::Exporter> to simplify exporting of
+L<Devel::Declare> magic. Writing custom parsers usualy only requires
+subclassing this module and overriding a couple methods.
 
-A parser should subclass this package and implement the rewrite() method. By
-the time rewrite is called parse() will have already read the current
-declaration line into an array of datastructures called 'parts'. Rewrite's job
-is to move, copy, or create new 'parts' which will then be assembled into the
-new line.
+=head1 DOCUMENTATION
+
+=over 4
+
+=item L<Devel::Declare::Interface>
+
+This is the primary interface for those who want to use Devel-Declare-Parser
+magic, and don't wantto use Exporter-Declare.
+
+=item L<Devel::Declare::Parser>
+
+This Document covers the API for Devel::Declare::Parser. This API is a useful
+reference when writing or modifying a custom parser.
+
+=back
 
 =head1 SYNOPSIS
 
-    package MyParser;
+    package Devel::Declare::Parser::MyParser;
     use strict;
     use warnings;
 
     use base 'Devel::Declare::Parser';
+    use Devel::Declare::Interface;
 
-    # Register your parser with a simple name.
-    # This is optional, but helpful to people using your parser.
-    __PACKAGE__->register( 'my_method' );
+    # Create an accessor (See INTERNALS WARNING below)
+    __PACKAGE__->add_accessor( 'my_accessor' );
 
+    # Register the parser for use.
+    Devel::Declare::Interface::register_parser( 'myparser' );
+
+    # Override the rewrite() method to take the parsed bits (parts) and put the
+    # ones you want into new_parts.
     sub rewrite {
         my $self = shift;
 
-        # If there is more than one argument before the opening { throw an
-        # exception.
-        if ( @{ $self->parts } > 1 ) {
-            # Get the parts and remove the first (good) item.
-            my @parts = @{ $self->parts };
-            shift( @parts );
+        my $parts = $self->parts;
 
-            # use bail() instead of die or croak for context.
-            $self->bail(
-                "Syntax error near: " . join( ' and ',
-                    map { $self->format_part($_)} @parts
-                )
-            );
-        }
+        $new_parts = $self->process_parts( $parts );
 
-        # Set the first argument, or make it undef.
-        $self->new_parts([ $self->parts->[0] || 'undef' ]);
-    }
-
-    sub inject {
-        my $self = shift;
-        # Inject self-shifting into the codeblock
-        return ('my $self = shift');
+        $self->new_parts( $new_parts );
+        1;
     }
 
     1;
 
-To use it:
+=head1 OVERVIEW
 
-    package My::Package;
-    use strict;
-    use warnings;
+This is a brief overview of how a parser is used.
 
-    use MyParser qw/my_func/;
-
-    sub my_func {
-        my ( $name, $code ) = @_;
-        croak( "You did not define a subroutine" )
-            unless $code;
-        return $code unless $name;
-        no strict 'refs';
-        *$name = $code;
-    }
-
-    my_func do_all_stuff {
-        # Automatically have $self
-        $self->do_stuff;
-        $self->do_more_stuff;
-    }
-
-    my $anon = my_func { $self->... };
-
-    1;
-
-=head1 INTERNALS WARNING
-
-B<Parser objects are blessed arrays, not hashrefs.>
-
-If you want to create a new accessor use the add_accessor() class method. It
-will take care of assigning an unused array element to the attribute, and will
-create a read/write accessor sub for you.
-
-    __PACKAGE__->add_accessor( 'my_accessor' );
-
-There are many public and private methods on the parser base class. Only the
-public methods are fully documented. Be sure to refer often to the list of
-private methods at the end of this document, accidently overriding a private
-method could have devestating consequences.
-
-=head1 CLASS METHODS
-
-These are methods not related to parsing. Some of these should be used by a
-subclass, others by tools that provide your interface.
-
-=head2 FOR INTERFACES
+=head2 WORKFLOW
 
 =over 4
 
-=item register( $name, $class )
+=item Parser is constructed
 
-Register a parser class under a short name.
+Name, Declarator, and Offset are provided by Devel::Declare.
 
-=item get_parser( $name )
+=item The process() method is called
 
-Get the parser class registered under $name.
+The process method calls all of the following in sequence, if any returns
+false, process() will return.
 
-=item enhance( $class, $function )
+=over 8
 
-Enhance $function in $class to use the magic provided by this parser.
+=item pre_parse()
 
-=item add_accessor( $name )
+Check if we want to process the line at all.
 
-Add an accessor to this parser, takes care of obtaining an array index for you.
+=item parse()
 
-=item DEBUG($bool)
+Turn the line into 'parts' (see below).
 
-Turn debugging on/off.
+=item post_parse()
+
+Hook, currently does nothing.
+
+=item rewrite()
+
+Hook, currently takes all the arguments between the declarator and the
+codeblock/semicolon (which have been turned into 'parts' structures in the
+parts() attribute) and puts them into the new_parts() attribute.
+
+This is usually the method you want to override.
+
+=item write_line()
+
+Opens, fills in, and closes the line as a string, then rewrites the actual
+line using Devel::Declare.
+
+=item edit_line()
+
+Hook, currently does nothing.
 
 =back
 
-=head2 UTILITY
+=back
+
+=head2 "PARTS"
+
+'Parts' are datastructures created by the parse() method. Every argument on the
+line (space seperated) up until an opening curly brace ({) or a semicolon (;)
+will be turned into a part. Here are the parts to expect:
+
+Parts will either be a plain string, or an arrayref containing a string and the
+quote character used to define the string. "String" or [ "String", '"' ].
+Variables and operators (excluding those containing only string characters) are
+typically the only parts left in a plain string form.
+
+See the format_parts() method for an easy way to get what you need from a
+'part' datastructure.
 
 =over 4
 
-=item bail( @messages )
+=item Bareword or Package Name
 
-Like croak, dies providing you context information. Since the death occurs
-inside the parser croak provides useless information.
+A barword name is anythign that starts with [a-zA-z] and contains only
+alpha-numerics plus underscore. It is also not quoted. Examples include
+my_name, something5, etc.
 
-=item diag( @message )
+The structure will be an arrayref, the first element will be the string form of
+the bareword name, the second element will be undef.
 
-Like carp, warns providing you context information. Since the warn occurs
-inside the parser carp provides useless information.
+Example:
 
-=item end_quote($start_char)
+    # my_keyword My::Package;
+    $part = [
+        'My::Package',
+        undef,
+    ];
 
-Find the end-character for the provide starting quote character. As in '{'
-returns '}' and '(' returns ')'. If there is no counter-part the start
-character is returned: "'" return "'".
+    # my_keyword some_name;
+    $part = [
+        "some_name",
+        undef,
+    ];
 
-=item filename()
+=item Quoted or Enclosed Element
 
-Filename the rewrite is occuring against.
+A quoted or enclosed element includes strings quoted with single or double
+quotes, and text contained within opening and closing brackets, braces or
+parens (excluding the curly brace '{').
 
-=item linenum()
+Example Structures:
 
-Linenum the rewrite is occuring on.
+    # my_keyword "double quoted string";
+    $part = [
+        'double quoted string',
+        '"',
+    ];
 
-=item format_part()
+    # my_keyword 'single quoted string';
+    $part = [
+        'double quoted string',
+        '"',
+    ];
 
-Returns the stringified form of a part datastructure.
+    # my_keyword ... ( a => 'b', c => 'd' );
+    $part = [
+        " a => 'b', c => 'd' ",
+        "(",
+    ];
 
-=item prefix()
+=item Variable or Operator
 
-Returns everything on the line up to the declaration statement. This might be
-something like '$x = '
+Anything starting with a non-alphanumeric, non-quoting character will be placed
+as-is (not interpolated) into a string. This catches most variables and
+operators, the exception are alpha-numeric operators such as 'eq', 'gt', 'cmp',
+etc. Eventually I plan to add logic to catch all oeprators, but it appears I
+will have to hard-code them.
 
-=item suffix()
+    # my_keyword $variable
+    $part = '$variable';
 
-Returns everything on the line from the ending statement character to the end
-of the actual line. This might be something like '|| die(...)'. B<NOTE> This
-will only work after parsing is complete.
+    # my_keyword <=>
+    $part = '<=>';
 
 =back
 
-=head1 EVENTUAL OUTPUT
+=head2 EVENTUAL OUTPUT
 
-Parser is designed such that it will transform any and all calls to the desired
-method into proper method calls.
+Parser is designed such that it will transform any and all uses of your keyword
+into proper function calls.
 
 That is this:
 
@@ -760,78 +772,79 @@ statement into the start of the block that uses a callback to attach the ');'
 to the end of the statement. This is per the documentation of
 L<Devel::Declare>. Reading in the entire sub is not a desirable scenario.
 
-=head1 WORKFLOW OVERVIEW
+=head1 DEVEL-DECLARE-PARSER API
 
-When an enhanced function is found the proper parser will be instanciated,
-thanks to Devel-Declare it just knows what line to manipulate. The offset and
-declarator name are provided to the new object. Finally the parse() method is
-called.
+=head2 INTERNALS WARNING
 
-The parse() method will check if the call is contained,as in a call where all
-the parameters are contained within a set of parens. If the call is not
-contained the parser will parse the entire line into parts.
+B<Parser objects are blessed arrays, not hashrefs.>
 
-parts are placed in an arrayref in the parts() method. Once the parts are ready
-the rewrite() method is called. The rewrite() method will take the parts, do
-what it will with them, and then place the modified/replaces parts into the
-new_parts() accessor.
+If you want to create a new accessor use the add_accessor() class method. It
+will take care of assigning an unused array element to the attribute, and will
+create a read/write accessor sub for you.
 
-Once rewrite() is finished the _apply_rewrite() method will join the prefix
-data, the function call, the parts, and the postfix data into the new line
-string. If there is a codeblock at the end of the line it will have some code
-injected into it to append text to the end of the function call.
+    __PACKAGE__->add_accessor( 'my_accessor' );
 
-The new line is given to Devel-Declare, and compiling continues with the new
-line.
+There are many public and private methods on the parser base class. Only the
+public methods are fully documented. Be sure to refer often to the list of
+private methods at the end of this document, accidently overriding a private
+method could have devestating consequences.
 
-=head1 PARSED PARTS
-
-Each item between the declarator and the end of the statement (; or {) will be
-turned into a part datastructure. Each type of element has a different form.
+=head2 CLASS METHODS
 
 =over 4
 
-=item operator, variable or other non-string/non-quote
+=item $class->new( $name, $declarator, $offset )
 
-These will be strings, nothing more
+The constructor, L<DO NOT OVERRIDE THIS!>
 
-    "string"
-    "=>"
-    ","
-    "+"
-    "$var"
+=item $class->DEBUG($bool)
 
-=item bareword or package name
+Turn debugging on/off. This will output the line after it has been modified, as
+well as some context information.
 
-These will be arrayrefs containing the stringified word/package name and undef.
-
-    [ "string",      undef ]
-    [ "My::Package", undef ]
-    [ "sub_name",    undef ]
-
-=item quoted item (includes things wrapped in [] or ())
-
-These will be an arrayref containing a string of everything between the opening
-and closing quote character, and the starting quote character.
-
-    [ "string",    "'" ]
-    [ "qw/a b c/", "[" ]
-    [ "a => 'apple', b => 'bat'", "(" ]
+B<NOTE:> This has a global effect, all parsers will start debugging.
 
 =back
 
-The parse() methid will populate the parts() accessor with an arrayref
-containing all the parsed parts.
+=head2 UTILITY METHODS
 
-    print Dumper( $parser->parts() );
-    $VAR1 = [
-        [ 'bareword', undef ],
-        '=>',
-        [ 'quoted string', '\'' ],
-        ...,
-    ];
+=over 4
 
-=head1 ACCESSORS
+=item bail( @messages )
+
+Like croak, dies providing you context information. Since any death occurs
+inside the parser, carp provides useless information.
+
+=item diag( @message )
+
+Like carp, warns providing you context information. Since the warn occurs
+inside the parser carp provides useless information.
+
+=item end_quote($start_char)
+
+Find the end-character for the provide starting quote character. As in '{'
+returns '}' and '(' returns ')'. If there is no counter-part the start
+character is returned: "'" returns "'".
+
+=item filename()
+
+Filename the rewrite is occuring against.
+
+=item linenum()
+
+Linenum the rewrite is occuring on.
+
+=item format_part()
+
+Returns the stringified form of a part datastructure. For variables and
+operators that is just the item itself as a string. For barewords or package
+names it is the item itself with single quotes wrapped around it. For quoted
+items it is the string wrapped in its proper quoting characters. If a second
+parameter is provided (and true) no single quotes will be added to barewords.
+
+=back
+
+=head2 ACCESSORS
 
 These are the read/write accessors used by Parser. B<Not all of these act on an
 array element, some will directly alter the current line.>
@@ -840,7 +853,7 @@ array element, some will directly alter the current line.>
 
 =item line()
 
-This will retrieve the current line from Devel-Declare. If given a value that
+This will retrieve the current line from Devel-Declare. If given a value, that
 value will be set as the current line using Devel-Declare.
 
 =item name()
@@ -869,14 +882,8 @@ Arrayref of new parts (may be undef)
 
 =item end_char()
 
-Will be set to the character just after the completely parsed line (usually {
-or ;)
-
-=item original()
-
-Set to the original line at construction. B<NOTE> this will likely not be
-complete, if the declaration spans multiple lines it will not be known when
-this is set.
+Will be set to the character just after the completely parsed line (usually '{'
+or ';')
 
 =item prototype()
 
@@ -884,23 +891,17 @@ Used internally for prototype tracking.
 
 =item contained()
 
-True if the parser determined this was a contained call.
+True if the parser determined this was a contained call. This means your
+keyword was followed by an opening paren, and the statement ended with a
+closing paren and semicolon. By default Parser will not modify such lines.
 
 =back
 
-=head1 OVERRIDABLE METHODS
+=head2 OVERRIDABLE METHODS
 
 These are methods you can, should, or may override in your baseclass.
 
 =over 4
-
-=item rewrite()
-
-You must override this.
-
-=item type()
-
-Returns 'const', see the L<Devel::Declare> docs for other options.
 
 =item quote_chars()
 
@@ -908,35 +909,50 @@ Specify the starting characters for quoted strings. (returns a list)
 
 =item end_chars()
 
-Characters to recognise as end of statement characters (; and {) (returns a
+Characters to recognise as end of statement characters (';' and '{') (returns a
 list)
-
-=item end_hook()
-
-A chance for you to modify the new line just before it is set.
 
 =item inject()
 
 Code to inject into functions enhanced by this parser.
 
-=item args()
+=item pre_parse()
 
-Should return a list of names which will be injected as shifted scalars in
-codeblocks created by function that have been enhanced by this parser.
-
-=back
-
-=head1 API METHODS
-
-This is a general description of the inner working of the parser, most of these
-are used internally before rewrite() is called. Many of these will do nothing,
-or possibly do damage if used within rewrite(). This section is mainly useful
-if you want to patch Parser, or override parse() with your own implementation
-B<Not Recommended>.
-
-=over 4
+Check if we want to process the line at all.
 
 =item parse()
+
+Turn the line into 'parts'.
+
+=item post_parse()
+
+Hook, currently does nothing.
+
+=item rewrite()
+
+Hook, currently takes all the arguments between the declarator and the
+codeblock/semicolon (which have been turned into 'parts' structures in the
+parts() attribute) and puts them into the new_parts() attribute.
+
+This is usually the method you want to override.
+
+=item write_line()
+
+Opens, fills in, and closes the line as a string, then rewrites the actual
+line using Devel::Declare.
+
+=item edit_line()
+
+Hook, currently does nothing.
+
+=item open_line()
+
+Usually returns '('. This is how to start a line following your keyword
+
+=item close_line()
+
+End the line, this means either re-inserting the opening '{' on the codeblock,
+along with any injections, or returning ');'
 
 =back
 
@@ -950,8 +966,7 @@ Advances the offset by $num_chars.
 
 =item skip_declarator()
 
-Skips the declarator at the start of the line. B<Only call this once, and
-within parse()>
+Skips the declarator at the start of the line.
 
 =item skipspace()
 
@@ -959,45 +974,74 @@ Advances the offset past any whitespace.
 
 =back
 
-=head2 PART RETRIEVAL (MODIFYING)
+=head2 LINE EXAMINATION (NON-MODIFYING)
 
-These get parts from the current position in the line. These B<WILL> modify the
-line and/or the position in the line.
+These are used by pre_parse() to examine the line prior to any modification.
 
 =over 4
 
-=item get_item()
+=item is_contained()
 
-Returns a part datastructure.
+True if the line is of the format:
 
-=item get_remaining_items()
+    keyword( ... );
 
-=item peek_quote()
+=item is_arrow_contained()
+
+True if the line is of the format:
+
+    keyword word_or_string => ( ... );
+
+=item is_defenition()
+
+True if the line matches the regex m/sub[\s\n]+$name/sm
 
 =back
 
-=head2 PART CHECKING
+=head2 PART EXAMINATION
 
-These check against parts that have already been parsed out of the line.
+These are methods that let you investigate the parts already parsed and placed
+in the parts() attribute.
 
 =over 4
+
+=item has_non_string_or_quote_parts()
+
+Returns a list of parts that are not strings, quotes, or barewords.
+
+=item has_string_or_quote_parts()
+
+Returns a list of parts that are strings, quotes, or barewords.
+
+=item has_keyword( $word )
+
+Check for a keyword in the parts
 
 =item has_comma()
 
 =item has_fat_comma()
 
-=item has_keyword()
+=back
 
-=item has_non_string_or_quote_parts()
+=head2 LINE EXAMINATION (MODIFYING)
 
-=item has_string_or_quote_parts()
+This examines the line returning part structures and removing elements from the
+line each time they are called.
+
+=over 4
+
+=item strip_item()
+
+=item strip_length()
+
+=item strip_remaining_items()
 
 =back
 
 =head2 LOOKING AHEAD
 
-These *should* not modify anything, but rather return parts of the line yet to
-be parsed.
+These methods help the parser determine what comes next in a line. In most
+cases these are non-modifying.
 
 =over 4
 
@@ -1015,9 +1059,11 @@ be parsed.
 
 =item peek_item_type()
 
-=item peek_num_chars($num)
+=item peek_num_chars()
 
 =item peek_other()
+
+=item peek_quote()
 
 =item peek_remaining()
 
@@ -1025,27 +1071,17 @@ be parsed.
 
 =back
 
-=head1 PRIVATE METHODS LIST
+=head2 PRIVATE METHODS
 
-This is a list of private methods. This list is provided to help you avoid
-overriding something you shouldn't. B<This list is not guarenteed to be
-complete.>
+Do not use these, and definately do not override them in a subclass.
 
 =over 4
 
-=item _apply_rewrite()
-
 =item _block_end_injection()
-
-=item _close()
-
-=item _contained()
 
 =item _debug()
 
 =item _edit_block_end()
-
-=item _is_defenition()
 
 =item _item_via_()
 
@@ -1053,17 +1089,11 @@ complete.>
 
 =item _move_via_()
 
-=item _new()
-
-=item _open()
-
 =item _peek_is_package()
 
 =item _peek_is_word()
 
 =item _quoted_from_dd()
-
-=item _sanity()
 
 =item _scope_end()
 

@@ -6,8 +6,6 @@ use base 'Devel::Declare::Parser';
 use Devel::Declare::Interface;
 Devel::Declare::Interface::register_parser( 'sublike' );
 
-sub args {(qw/name sub/)}
-
 sub rewrite {
     my $self = shift;
 
@@ -31,6 +29,12 @@ __END__
 =head1 NAME
 
 Devel::Declare::Parser::Sublike - Parser that acts just like 'sub'
+
+=head1 DESCRIPTION
+
+This parser can be used to define a function that takes a single name, and a
+single codeblock. This is just like the 'sub' keyword. The name can be either a
+bareword, or a quoted string.
 
 =head1 AUTHORS
 
