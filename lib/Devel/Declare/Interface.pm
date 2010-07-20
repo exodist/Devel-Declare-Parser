@@ -130,6 +130,27 @@ Get the parser class by short name.
 Make $name a keyword in $dest_class that uses $parser. $parser can be a short
 name or class name. $type defaults to 'const'.
 
+=back
+
+=head1 FENNEC PROJECT
+
+This module is part of the Fennec project. See L<Fennec> for more details.
+Fennec is a project to develop an extendable and powerful testing framework.
+Together the tools that make up the Fennec framework provide a potent testing
+environment.
+
+The tools provided by Fennec are also useful on their own. Sometimes a tool
+created for Fennec is useful outside the greator framework. Such tools are
+turned into their own projects. This is one such project.
+
+=over 2
+
+=item L<Fennec> - The core framework
+
+The primary Fennec project that ties them all together.
+
+=back
+
 =head1 AUTHORS
 
 Chad Granum L<exodist7@gmail.com>
