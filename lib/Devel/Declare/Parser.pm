@@ -572,7 +572,7 @@ Devel::Declare::Parser - Higher level interface to Devel-Declare
 
 Devel-Declare-Parser is a higher-level API sitting on top of L<Devel::Declare>.
 It is used by L<Devel::Declare::Exporter> to simplify exporting of
-L<Devel::Declare> magic. Writing custom parsers usualy only requires
+L<Devel::Declare> magic. Writing custom parsers usually only requires
 subclassing this module and overriding a couple methods.
 
 =head1 DOCUMENTATION
@@ -582,7 +582,7 @@ subclassing this module and overriding a couple methods.
 =item L<Devel::Declare::Interface>
 
 This is the primary interface for those who want to use Devel-Declare-Parser
-magic, and don't wantto use Exporter-Declare.
+magic, and don't want to use Exporter-Declare.
 
 =item L<Devel::Declare::Parser>
 
@@ -676,7 +676,7 @@ Hook, currently does nothing.
 =head2 "PARTS"
 
 'Parts' are datastructures created by the parse() method. Every argument on the
-line (space seperated) up until an opening curly brace ({) or a semicolon (;)
+line (space separated) up until an opening curly brace ({) or a semicolon (;)
 will be turned into a part. Here are the parts to expect:
 
 Parts will either be a plain string, or an arrayref containing a string and the
@@ -691,7 +691,7 @@ See the format_parts() method for an easy way to get what you need from a
 
 =item Bareword or Package Name
 
-A barword name is anythign that starts with [a-zA-z] and contains only
+A bareword name is anything that starts with [a-zA-z] and contains only
 alpha-numerics plus underscore. It is also not quoted. Examples include
 my_name, something5, etc.
 
@@ -743,7 +743,7 @@ Example Structures:
 Anything starting with a non-alphanumeric, non-quoting character will be placed
 as-is (not interpolated) into a string. This catches most variables and
 operators, the exception are alpha-numeric operators such as 'eq', 'gt', 'cmp',
-etc. Eventually I plan to add logic to catch all oeprators, but it appears I
+etc. Eventually I plan to add logic to catch all operators, but it appears I
 will have to hard-code them.
 
     # my_keyword $variable
@@ -787,7 +787,7 @@ create a read/write accessor sub for you.
 There are many public and private methods on the parser base class. Only the
 public methods are fully documented. Be sure to refer often to the list of
 private methods at the end of this document, accidently overriding a private
-method could have devestating consequences.
+method could have devastating consequences.
 
 =head2 CLASS METHODS
 
@@ -828,11 +828,11 @@ character is returned: "'" returns "'".
 
 =item filename()
 
-Filename the rewrite is occuring against.
+Filename the rewrite is occurring against.
 
 =item linenum()
 
-Linenum the rewrite is occuring on.
+Linenum the rewrite is occurring on.
 
 =item format_part()
 
@@ -1073,7 +1073,7 @@ cases these are non-modifying.
 
 =head2 PRIVATE METHODS
 
-Do not use these, and definately do not override them in a subclass.
+Do not use these, and definitely do not override them in a subclass.
 
 =over 4
 
