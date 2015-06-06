@@ -9,7 +9,7 @@ use B::Hooks::EndOfScope;
 use Scalar::Util qw/blessed/;
 use Carp;
 
-our $VERSION = '0.017';
+our $VERSION = '0.018';
 
 sub new {
     my $class = shift;

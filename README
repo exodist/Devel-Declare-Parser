@@ -4,13 +4,13 @@ NAME
 DESCRIPTION
     Devel-Declare-Parser is a higher-level API sitting on top of
     Devel::Declare. It is used by Devel::Declare::Exporter to simplify
-    exporting of Devel::Declare magic. Writing custom parsers usualy only
+    exporting of Devel::Declare magic. Writing custom parsers usually only
     requires subclassing this module and overriding a couple methods.
 
 DOCUMENTATION
     Devel::Declare::Interface
         This is the primary interface for those who want to use
-        Devel-Declare-Parser magic, and don't wantto use Exporter-Declare.
+        Devel-Declare-Parser magic, and don't want to use Exporter-Declare.
 
     Devel::Declare::Parser
         This Document covers the API for Devel::Declare::Parser. This API is
@@ -81,7 +81,7 @@ OVERVIEW
 
   "PARTS"
     'Parts' are datastructures created by the parse() method. Every argument
-    on the line (space seperated) up until an opening curly brace ({) or a
+    on the line (space separated) up until an opening curly brace ({) or a
     semicolon (;) will be turned into a part. Here are the parts to expect:
 
     Parts will either be a plain string, or an arrayref containing a string
@@ -94,7 +94,7 @@ OVERVIEW
     a 'part' datastructure.
 
     Bareword or Package Name
-        A barword name is anythign that starts with [a-zA-z] and contains
+        A bareword name is anything that starts with [a-zA-z] and contains
         only alpha-numerics plus underscore. It is also not quoted. Examples
         include my_name, something5, etc.
 
@@ -145,7 +145,7 @@ OVERVIEW
         will be placed as-is (not interpolated) into a string. This catches
         most variables and operators, the exception are alpha-numeric
         operators such as 'eq', 'gt', 'cmp', etc. Eventually I plan to add
-        logic to catch all oeprators, but it appears I will have to
+        logic to catch all operators, but it appears I will have to
         hard-code them.
 
             # my_keyword $variable
@@ -184,7 +184,7 @@ DEVEL-DECLARE-PARSER API
     There are many public and private methods on the parser base class. Only
     the public methods are fully documented. Be sure to refer often to the
     list of private methods at the end of this document, accidently
-    overriding a private method could have devestating consequences.
+    overriding a private method could have devastating consequences.
 
   CLASS METHODS
     $class->new( $name, $declarator, $offset )
@@ -211,10 +211,10 @@ DEVEL-DECLARE-PARSER API
         the start character is returned: "'" returns "'".
 
     filename()
-        Filename the rewrite is occuring against.
+        Filename the rewrite is occurring against.
 
     linenum()
-        Linenum the rewrite is occuring on.
+        Linenum the rewrite is occurring on.
 
     format_part()
         Returns the stringified form of a part datastructure. For variables
@@ -378,7 +378,7 @@ DEVEL-DECLARE-PARSER API
     peek_word()
 
   PRIVATE METHODS
-    Do not use these, and definately do not override them in a subclass.
+    Do not use these, and definitely do not override them in a subclass.
 
     _block_end_injection()
     _debug()
@@ -392,6 +392,19 @@ DEVEL-DECLARE-PARSER API
     _scope_end()
     _stash()
     _unstash()
+
+FENNEC PROJECT
+    This module is part of the Fennec project. See Fennec for more details.
+    Fennec is a project to develop an extendable and powerful testing
+    framework. Together the tools that make up the Fennec framework provide
+    a potent testing environment.
+
+    The tools provided by Fennec are also useful on their own. Sometimes a
+    tool created for Fennec is useful outside the greator framework. Such
+    tools are turned into their own projects. This is one such project.
+
+    Fennec - The core framework
+      The primary Fennec project that ties them all together.
 
 AUTHORS
     Chad Granum exodist7@gmail.com
