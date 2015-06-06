@@ -46,11 +46,6 @@ sub enhance {
         unless $for && $name && $parser;
     $type ||= 'const';
 
-    if ( $parser eq 'begin' ) {
-        require Devel::BeginLift;
-        return Devel::BeginLift->setup_for( $for => [$name] )
-    }
-
     require Devel::Declare;
     Devel::Declare->setup_for(
         $for,

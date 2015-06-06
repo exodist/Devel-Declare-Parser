@@ -12,7 +12,6 @@ my $build = Module::Build->new(
         'B::Compiling' => 0.02,
         'B::Hooks::EndOfScope' => 0.08,
         'Devel::Declare' => 0.006000,
-        'Devel::BeginLift' => 0,
         'Test::Exception::LessClever' => 0.005,
         'Test::Simple' => 0.88,
         'Scalar::Util' => 0,

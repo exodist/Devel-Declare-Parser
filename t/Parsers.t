@@ -11,7 +11,6 @@ BEGIN {
         for [ 'sl', 'sublike'   ],
             [ 'cb', 'codeblock' ],
             [ 'mth', 'method'   ],
-            [ 'beg', 'begin'    ];
 }
 
 sub
@@ -41,21 +40,6 @@ sl a {
 sl {
     $ran{sl}++;
 }
-
-#use vars qw/$BEGIN $got/;
-#our $BEGIN;
-#BEGIN { $BEGIN = 1 };
-#$BEGIN = 0;
-#ok( !$BEGIN, "reset begin" );
-#beg(
-#    sub {
-#        $ran{beg}++;
-#        $got = !!$BEGIN;
-#    }
-#);
-#ok( $got, "In Begin" );
-#
-#ok( $ran{beg}, "ran beg" );
 
 cb {
     $ran{cd}++;
